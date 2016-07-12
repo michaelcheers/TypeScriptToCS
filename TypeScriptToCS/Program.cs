@@ -238,9 +238,7 @@ namespace TypeScriptToCS
                                                 type = type2
                                             });
                                             SkipEmpty(tsFile, ref index);
-                                            if (tsFile[index] == ',')
-                                                index++;
-                                            else
+                                            if (tsFile[index] != ',')
                                                 goto case ')';
                                             break;
                                         case ')':
