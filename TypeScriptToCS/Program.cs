@@ -31,7 +31,8 @@ namespace TypeScriptToCS
                     {
                         ClassDefinition classItem = (ClassDefinition)rItem;
                         string extendString = classItem.extends.Count != 0 ? " : " : string.Empty;
-                        endFile += $"\t[External]\n\tpublic {classItem.type} {classItem.name}{extendString}{string.Join(", ", classItem.extends.ConvertAll(GetType)) + "\n\t{"}";
+                        string interfaceString = classItem.type == TypeType.@interface ? "\t[ObjectLiteral]\n" : "";
+                        endFile += $"\t[External]\n{interfaceString}\tpublic class {classItem.name}{extendString}{string.Join(", ", classItem.extends.ConvertAll(GetType)) + "\n\t{"}";
                         foreach (var item in classItem.fields)
                             endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + $"{item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)};";
                         foreach (var item in classItem.methods)
