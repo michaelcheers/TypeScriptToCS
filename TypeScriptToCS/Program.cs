@@ -30,7 +30,8 @@ namespace TypeScriptToCS
                     if (rItem is ClassDefinition)
                     {
                         ClassDefinition classItem = (ClassDefinition)rItem;
-                        endFile += $"\t[External]\n\tpublic {classItem.type} {classItem.name + "\n\t{"}";
+                        string extendString = classItem.extends.Count != 0 ? " : " : string.Empty;
+                        endFile += $"\t[External]\n\tpublic {classItem.type} {classItem.name}{extendString}{string.Join(", ", classItem.extends.ConvertAll(GetType)) + "\n\t{"}";
                         foreach (var item in classItem.fields)
                             endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + $"{item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)};";
                         foreach (var item in classItem.methods)
@@ -131,7 +132,7 @@ namespace TypeScriptToCS
                     }
                     SkipEmpty(tsFile, ref index);
                 }
-                while (word == "export" || word == "declare" || word == "static" || word == "get" || word == "set" || word == "const");
+                while (word == "export" || word == "declare" || word == "static" || word == "get" || word == "set");
                 switch (word)
                 {
                     case "class":
@@ -141,6 +142,13 @@ namespace TypeScriptToCS
                             name = SkipToEndOfWord(tsFile, ref index),
                             type = (TypeType)Enum.Parse(typeof(TypeType), word)
                         });
+                        SkipEmpty(tsFile, ref index);
+                        var nWord = SkipToEndOfWord(tsFile, ref index);
+                        if (nWord == "extends")
+                        {
+                            SkipEmpty(tsFile, ref index);
+                            (typeTop.Last() as ClassDefinition).extends.Add(SkipToEndOfWord(tsFile, ref index));
+                        }
                         break;
                     case "enum":
                         typeTop.Add(new EnumDefinition
@@ -208,10 +216,14 @@ namespace TypeScriptToCS
                                 
                                 for (; index < tsFile.Length; index++)
                                 {
+                                    SkipEmpty(tsFile, ref index);
                                     bool optional = false;
                                     string word2 = SkipToEndOfWord(tsFile, ref index);
-                                    if (tsFile[index] == '?') optional = true;
-                                    index++;
+                                    if (tsFile[index] == '?')
+                                    {
+                                        optional = true;
+                                        index++;
+                                    }
                                     SkipEmpty(tsFile, ref index);
                                     switch (tsFile[index])
                                     {
@@ -219,21 +231,21 @@ namespace TypeScriptToCS
                                             index++;
                                             SkipEmpty(tsFile, ref index);
                                             string type2 = SkipToEndOfWord(tsFile, ref index);
-                                            SkipEmpty(tsFile, ref index);
-                                            if (tsFile[index] == ',')
-                                                index++;
-                                            SkipEmpty(tsFile, ref index);
                                             method.parameters.Add(new TypeNameAndOptional
                                             {
                                                 optional = optional,
                                                 name = word2,
                                                 type = type2
                                             });
+                                            SkipEmpty(tsFile, ref index);
+                                            if (tsFile[index] == ',')
+                                                index++;
+                                            else
+                                                goto case ')';
                                             break;
                                         case ')':
                                             index++;
                                             SkipEmpty(tsFile, ref index);
-                                            index++;
                                             goto Break;
                                     }
                                 }
@@ -273,7 +285,7 @@ namespace TypeScriptToCS
             for (; index < tsFile.Length; index++)
             {
                 var item = tsFile[index];
-                if (char.IsLetter(item))
+                if (char.IsLetterOrDigit(item))
                     result += item;
                 else
                     return result;

@@ -11,6 +11,7 @@ namespace TypeScriptToCS
         public List<Method> methods = new List<Method>();
         public List<Property> properties = new List<Property>();
         public List<Field> fields = new List<Field>();
+        public List<string> extends = new List<string>();
         public string name;
         public TypeType type;
     }
