@@ -35,7 +35,7 @@ namespace TypeScriptToCS
                         foreach (var item in classItem.fields)
                             endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + $"{item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)};";
                         foreach (var item in classItem.methods)
-                            endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + "extern " + $"{item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => v.type + (v.optional ? "? " : " ") + v.name)) + ");";
+                            endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + "extern " + $"{item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + (v.optional ? "? " : " ") + v.name)) + ");";
                         foreach (var item in classItem.properties)
                             endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + $"extern {item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + "{ " + (item.get ? "get; " : "") + (item.set ? "set; " : "") + "}";
                     }
@@ -218,7 +218,10 @@ namespace TypeScriptToCS
                                 {
                                     SkipEmpty(tsFile, ref index);
                                     bool optional = false;
+                                    bool @params = false;
+                                    if (tsFile[index] == '.') { index += 3; SkipEmpty(tsFile, ref index); @params = true; }
                                     string word2 = SkipToEndOfWord(tsFile, ref index);
+                                    SkipEmpty(tsFile, ref index);
                                     if (tsFile[index] == '?')
                                     {
                                         optional = true;
@@ -234,6 +237,7 @@ namespace TypeScriptToCS
                                             method.parameters.Add(new TypeNameAndOptional
                                             {
                                                 optional = optional,
+                                                @params = @params,
                                                 name = word2,
                                                 type = type2
                                             });
@@ -283,7 +287,7 @@ namespace TypeScriptToCS
             for (; index < tsFile.Length; index++)
             {
                 var item = tsFile[index];
-                if (char.IsLetterOrDigit(item))
+                if (char.IsLetterOrDigit(item) || item == '[' || item == ']')
                     result += item;
                 else
                     return result;
