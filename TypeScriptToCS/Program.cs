@@ -49,6 +49,8 @@ namespace TypeScriptToCS
                     if (rItem is ClassDefinition)
                     {
                         ClassDefinition classItem = (ClassDefinition)rItem;
+                        if (classItem.name == "GlobalClass" && classItem.fields.Count == 0 && classItem.methods.Count == 0 && classItem.properties.Count == 0)
+                            continue;
                         string extendString = classItem.extends.Count != 0 ? " : " : string.Empty;
                         string interfaceString = classItem.type == TypeType.@interface ? "\t[ObjectLiteral]\n" : "";
 
@@ -102,7 +104,12 @@ namespace TypeScriptToCS
                     if (tsFile[index] == '/')
                         index = tsFile.IndexOf('\n', index);
                     else if (tsFile[index] == '*')
+                    {
                         index = tsFile.IndexOf("*/", index);
+                        index += 2;
+                        if (index >= tsFile.Length)
+                            return;
+                    }
 
                     SkipEmpty(tsFile, ref index);
                 }
@@ -126,23 +133,21 @@ namespace TypeScriptToCS
                         if (typeTop.Last() is ClassDefinition)
                         {
                             if ((typeTop.Last() as ClassDefinition).name == "GlobalClass")
-                                break;
+                                goto EndIf;
                         }
 
                         if (namespaceTop.Count == 0)
                         {
                             global.typeDefinitions.Add(typeTop.Last());
                             typeTop.RemoveAt(typeTop.Count - 1);
-                            if (typeTop.Last() is ClassDefinition)
-                                if ((typeTop.Last() as ClassDefinition).name == "GlobalClass")
-                                    break;
                             goto OutIfBreak;
                         }
 
-                        namespaceTop.Last().typeDefinitions.Add(typeTop[0]);
+                        namespaceTop.Last().typeDefinitions.Add(typeTop.Last());
                         typeTop.RemoveAt(typeTop.Count - 1);
                         goto OutIfBreak;
                     }
+                    EndIf:
 
                     namespaces.Add(namespaceTop.Last());
                     namespaceTop.RemoveAt(namespaceTop.Count - 1);
@@ -206,15 +211,20 @@ namespace TypeScriptToCS
 
                     case "module":
                     case "namespace":
+                        if (tsFile[index] == '\'')
+                            index++;
                         namespaceTop.Add(new NamespaceDefinition
                         {
                             name = SkipToEndOfWord(tsFile, ref index)
                         });
-                        Array.ForEach(new Action<ClassDefinition>[] { typeTop.Add, namespaceTop.Last().typeDefinitions.Add }, v => v(new ClassDefinition
+                        ClassDefinition globalClass = new ClassDefinition
                         {
                             name = "GlobalClass",
                             type = TypeType.@class
-                        }));
+                        };
+                        Array.ForEach(new Action<ClassDefinition>[] { typeTop.Add, namespaceTop.Last().typeDefinitions.Add }, v => v(globalClass));
+                        if (tsFile[index] == '\'')
+                            index++;
                         break;
 
                     default:
@@ -227,10 +237,15 @@ namespace TypeScriptToCS
                                 if (enumItem != null)
                                     enumItem.members.Add(word);
 
-                                if (item == '}')
+                                switch (item)
                                 {
-                                    index--;
-                                    goto BracketLoop;
+                                    case '}':
+                                        index--;
+                                        goto BracketLoop;
+                                    case ',':
+                                        goto After;
+                                    default:
+                                        break;
                                 }
                                 break;
 
@@ -251,6 +266,7 @@ namespace TypeScriptToCS
                                 SkipEmpty(tsFile, ref index);
                                 if (tsFile[index] == ';')
                                     index++;
+                                goto BracketLoop;
                                 continue;
 
                             default:
