@@ -15,7 +15,20 @@ namespace TypeScriptToCS
             string nameSpaceName = Console.ReadLine();
             Console.WriteLine("Typescript file location?");
             string tsFileLocation = Console.ReadLine();
-            string tsFile = File.ReadAllText(tsFileLocation);
+            string tsFile = "";
+            try
+            {
+                tsFile = File.ReadAllText(tsFileLocation);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e + " occured when trying to read file. Press enter to exit. Press t to rethrow.");
+                ConsoleKey key;
+                while ((key = Console.ReadKey(true).Key) != ConsoleKey.Enter)
+                    if (key == ConsoleKey.R)
+                        throw;
+                Environment.Exit(0);
+            }
             List<NamespaceDefinition> nameSpaceDefinitions = new List<NamespaceDefinition>();
             int index = 0;
             ReadTypeScriptFile(tsFile, ref index, nameSpaceDefinitions);
@@ -66,6 +79,7 @@ namespace TypeScriptToCS
             List<TypeDefinition> typeTop = new List<TypeDefinition>();
             for (; index < tsFile.Length; index++)
             {
+                SkipEmpty(tsFile, ref index);
                 while (tsFile[index] == '/')
                 {
                     index++;
@@ -75,7 +89,6 @@ namespace TypeScriptToCS
                         index = tsFile.IndexOf("*/", index);
                     SkipEmpty(tsFile, ref index);
                 }
-                SkipEmpty(tsFile, ref index);
                 if (index >= tsFile.Length)
                     break;
                 BracketLoop:
@@ -91,17 +104,17 @@ namespace TypeScriptToCS
                         case 0:
                             break;
                         default:
-                            if (typeTop.Last() is ClassDefinition)
-                                if ((typeTop.Last() as ClassDefinition).name == "GlobalClass")
-                                    break;
                             if (namespaceTop.Count == 0)
                             {
                                 global.typeDefinitions.Add(typeTop.Last());
                                 typeTop.RemoveAt(typeTop.Count - 1);
                                 goto OutIfBreak;
                             }
-                            namespaceTop.Last().typeDefinitions.Add(typeTop[0]);
+                            namespaceTop.Last().typeDefinitions.Add(typeTop.Last());
                             typeTop.RemoveAt(typeTop.Count - 1);
+                            if (typeTop.Last() is ClassDefinition)
+                                if ((typeTop.Last() as ClassDefinition).name == "GlobalClass")
+                                    break;
                             goto OutIfBreak;
                     }
                     namespaces.Add(namespaceTop.Last());
@@ -111,6 +124,7 @@ namespace TypeScriptToCS
                 goto After;
                 OutIfBreak:
                 if (++index >= tsFile.Length) return;
+                SkipEmpty(tsFile, ref index);
                 After:
                 string word;
                 bool @static = false;
@@ -133,7 +147,7 @@ namespace TypeScriptToCS
                     }
                     SkipEmpty(tsFile, ref index);
                 }
-                while (word == "export" || word == "declare" || word == "static" || word == "get" || word == "set");
+                while (word == "export" || word == "declare" || word == "static" || word == "get" || word == "set" || word == "function");
                 switch (word)
                 {
                     case "class":
@@ -163,11 +177,11 @@ namespace TypeScriptToCS
                         {
                             name = SkipToEndOfWord(tsFile, ref index)
                         });
-                        typeTop.Add(new ClassDefinition
+                        Array.ForEach(new Action<ClassDefinition>[] { typeTop.Add, namespaceTop.Last().typeDefinitions.Add }, v => v(new ClassDefinition
                         {
                             name = "GlobalClass",
                             type = TypeType.@class
-                        });
+                        }));
                         break;
                     default:
                         char item = tsFile[index++];
