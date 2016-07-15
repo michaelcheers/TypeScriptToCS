@@ -38,7 +38,7 @@ namespace TypeScriptToCS
             int index = 0;
             ReadTypeScriptFile(tsFile, ref index, nameSpaceDefinitions);
 
-            string endFile = "using Bridge;\n\n\n";
+            string endFile = "using Bridge;\nusing System;\n\n\n";
 
             foreach (var namespaceItem in nameSpaceDefinitions)
             {
@@ -50,23 +50,44 @@ namespace TypeScriptToCS
                     if (rItem is ClassDefinition)
                     {
                         ClassDefinition classItem = (ClassDefinition)rItem;
-                        if (classItem.name == "GlobalClass" && classItem.fields.Count == 0 && classItem.methods.Count == 0 && classItem.properties.Count == 0)
+                        if (classItem.name == "GlobalClass" && classItem.fields.Count == 0 && classItem.methods.Count == 0/* && classItem.properties.Count == 0*/)
                             continue;
                         string extendString = classItem.extends.Count != 0 ? " : " : string.Empty;
-                        string interfaceString = classItem.type == TypeType.@interface ? "\t[ObjectLiteral]\n" : "";
 
-                        endFile += $"\t[External]\n{interfaceString}\tpublic class {ChangeName(classItem.name)}{extendString}{string.Join(", ", classItem.extends.ConvertAll(GetType)) + "\n\t{"}";
+                        if (classItem.type == TypeType.@interface && !(classItem.fields.Count == 0 && classItem.methods.Count == 0/* && classItem.properties.Count == 0*/))
+                        {
+                            endFile += $"\t[ObjectLiteral]\n\tpublic class {classItem.name}ObjectLiteral\n\t{"{"}\n\t\t";
+                            foreach (var item in classItem.fields)
+                                endFile += $"\n\t\tpublic extern {item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }";
+                            foreach (var item in classItem.methods)
+                            {
+                                endFile += $"\n\t\tpublic extern {item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + (v.optional ? "? " : " ") + ChangeName(v.name))) + ");";
+                                endFile += "\n\t\tpublic extern ";
+                                if (item.typeAndName.type == "void")
+                                    if (item.parameters.Count == 0)
+                                        endFile += "Action";
+                                    else
+                                        endFile += $"Action<{string.Join(", ", item.parameters.ConvertAll(v => v.type))}>";
+                                else
+                                    if (item.parameters.Count == 0)
+                                        endFile += $"Func<{item.typeAndName.type}>";
+                                    else
+                                        endFile += $"Func<{string.Join(", ", item.parameters.ConvertAll(v => v.type))}, {item.typeAndName.type}>";
+                            }
+                            endFile += "\n\t}\n";
+                        }
+                        endFile += $"\t[External]\n\tpublic {classItem.type} {ChangeName(classItem.name)}{extendString}{string.Join(", ", classItem.extends.ConvertAll(GetType)) + "\n\t{"}";
+
+                        string interfacePublic = classItem.type != TypeType.@interface ? "public extern " : string.Empty;
 
                         foreach (var item in classItem.fields)
-                            if (!string.IsNullOrEmpty(item.typeAndName.name))
-                                endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + $"{item.typeAndName.type}{item.typeAndName.optional} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)};";
+                                endFile += $"\n\t\t{interfacePublic}" + (item.@static ? "static " : "") + $"{item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }";
 
                         foreach (var item in classItem.methods)
-                            if (!string.IsNullOrEmpty(item.typeAndName.name))
-                                endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + "extern " + $"{item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + (v.optional ? "? " : " ") + ChangeName(v.name))) + ");";
+                                endFile += $"\n\t\t{interfacePublic}" + (item.@static ? "static " : "") + $"{item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + (v.optional ? "? " : " ") + ChangeName(v.name))) + ");";
 
-                        foreach (var item in classItem.properties)
-                            endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + $"extern {item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + "{ " + (item.get ? "get; " : "") + (item.set ? "set; " : "") + "}";
+                        /*foreach (var item in classItem.properties)
+                            endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + $"extern {item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + "{ " + (item.get ? "get; " : "") + (item.set ? "set; " : "") + "}";*/
                     }
                     else if (rItem is EnumDefinition)
                     {
@@ -176,8 +197,8 @@ namespace TypeScriptToCS
                 After:
                 string word;
                 bool @static = false;
-                bool get = false;
-                bool set = false;
+                /*bool get = false;
+                bool set = false;*/
 
                 do
                 {
@@ -187,16 +208,16 @@ namespace TypeScriptToCS
                         case "static":
                             @static = true;
                             break;
-                        case "get":
+                        /*case "get":
                             get = true;
                             break;
                         case "set":
                             set = true;
-                            break;
+                            break;*/
                     }
                     SkipEmpty(tsFile, ref index);
                 }
-                while (word == "export" || word == "declare" || word == "static" || word == "get" || word == "set" || word == "function" || word == "var");
+                while (word == "export" || word == "declare" || word == "static" /*|| word == "get" || word == "set"*/ || word == "function" || word == "var");
                 switch (word)
                 {
                     case "class":
@@ -208,11 +229,12 @@ namespace TypeScriptToCS
                         });
                         SkipEmpty(tsFile, ref index);
 
-                        var nWord = SkipToEndOfWord(tsFile, ref index);
-                        if (nWord == "extends")
+                        string nWord;
+                        while ((nWord = SkipToEndOfWord(tsFile, ref index)) == "extends" || nWord == "implements")
                         {
                             SkipEmpty(tsFile, ref index);
                             (typeTop.Last() as ClassDefinition).extends.Add(SkipToEndOfWord(tsFile, ref index));
+                            SkipEmpty(tsFile, ref index);
                         }
                         break;
 
@@ -368,7 +390,7 @@ namespace TypeScriptToCS
                                         method.typeAndName.type = "object";
                                     }
 
-                                    if (get || set)
+                                    /*if (get || set)
                                     {
                                         (typeTop.Last() as ClassDefinition).properties.Add(new Property
                                         {
@@ -378,7 +400,7 @@ namespace TypeScriptToCS
                                             typeAndName = method.typeAndName
                                         });
                                     }
-                                    else if (string.IsNullOrEmpty(method.typeAndName.name))
+                                    else */if (string.IsNullOrEmpty(method.typeAndName.name))
                                     {
                                         var oldTypeName = (typeTop.Last() as ClassDefinition).name;
                                         typeTop.RemoveAt(typeTop.Count - 1);
