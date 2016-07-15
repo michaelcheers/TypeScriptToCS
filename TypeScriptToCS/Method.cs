@@ -2,7 +2,7 @@
 
 namespace TypeScriptToCS
 {
-    public class Method : ClassElement
+    public class Method : ClassElement, TypeDefinition
     {
         public TypeAndName typeAndName = new TypeAndName();
 

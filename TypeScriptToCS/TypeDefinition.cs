@@ -1,6 +1,6 @@
 ﻿namespace TypeScriptToCS
 {
-    public class TypeDefinition
+    public interface TypeDefinition
     {
     }
 }

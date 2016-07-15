@@ -73,8 +73,15 @@ namespace TypeScriptToCS
                         EnumDefinition enumItem = (EnumDefinition)rItem;
                         endFile += $"\t[External]\n\tpublic enum {ChangeName(enumItem.name) + "\n\t{"}\n\t\t{string.Join(",\n\t\t", enumItem.members.ConvertAll(ChangeName))}";
                     }
+                    else if (rItem is Method)
+                    {
+                        Method item = (Method)rItem;
+                        endFile += $"\t[External]\n\tpublic delegate {item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + (v.optional ? "? " : " ") + ChangeName(v.name))) + ");\n";
+                        goto AfterEndBlock;
+                    }
 
                     endFile += "\n\t}\n";
+                    AfterEndBlock:;
                 }
 
                 if ((namespaceItem.name ?? "") != "")
@@ -370,6 +377,13 @@ namespace TypeScriptToCS
                                             @static = @static,
                                             typeAndName = method.typeAndName
                                         });
+                                    }
+                                    else if (string.IsNullOrEmpty(method.typeAndName.name))
+                                    {
+                                        var oldTypeName = (typeTop.Last() as ClassDefinition).name;
+                                        typeTop.RemoveAt(typeTop.Count - 1);
+                                        method.typeAndName.name = oldTypeName;
+                                        typeTop.Add(method);
                                     }
                                     else
                                     {
