@@ -74,13 +74,13 @@ namespace TypeScriptToCS
                         var itemClone = item.Clone();
                         itemClone.typeAndName = itemClone.typeAndName.Clone();
                         itemClone.typeAndName.name += "Delegate";
-                        endFile += "\n\t\t";
+                        endFile += "\n";
                         ProcessTypeDefinition(itemClone, ref endFile);
-                        endFile += $"\n\t\tpublic extern {item.typeAndName.type} {item.typeAndName.name} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + (v.optional ? "? " : " ") + ChangeName(v.name))) + ");";
+                        endFile += $"\n\t\tpublic extern {item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + (v.optional ? "? " : " ") + ChangeName(v.name))) + ");";
                         endFile += "\n\t\tpublic extern ";
-                        endFile += $"{item.typeAndName.name}" + "Delegate";
+                        endFile += $"{item.typeAndName.name}Delegate";
                         endFile += " ";
-                        endFile += char.ToUpper(item.typeAndName.name[0]) + item.typeAndName.name.Substring(1);
+                        endFile += $"{char.ToLower(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}";
                         endFile += " { get; set; }";
                     }
                     endFile += "\n\t}\n";
