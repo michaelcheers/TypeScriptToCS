@@ -222,7 +222,7 @@ namespace TypeScriptToCS
                     }
                     SkipEmpty(tsFile, ref index);
                 }
-                while (word == "export" || word == "declare" || word == "static" /*|| word == "get" || word == "set"*/ || word == "function" || word == "var");
+                while (word == "export" || word == "declare" || word == "static" /*|| word == "get" || word == "set"*/ || word == "function" || word == "var" || word == "const");
                 switch (word)
                 {
                     case "class":
