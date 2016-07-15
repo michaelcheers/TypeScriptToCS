@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.CSharp;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -54,13 +55,15 @@ namespace TypeScriptToCS
                         string extendString = classItem.extends.Count != 0 ? " : " : string.Empty;
                         string interfaceString = classItem.type == TypeType.@interface ? "\t[ObjectLiteral]\n" : "";
 
-                        endFile += $"\t[External]\n{interfaceString}\tpublic class {classItem.name}{extendString}{string.Join(", ", classItem.extends.ConvertAll(GetType)) + "\n\t{"}";
+                        endFile += $"\t[External]\n{interfaceString}\tpublic class {ChangeName(classItem.name)}{extendString}{string.Join(", ", classItem.extends.ConvertAll(GetType)) + "\n\t{"}";
 
                         foreach (var item in classItem.fields)
-                            endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + $"{item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)};";
+                            if (!string.IsNullOrEmpty(item.typeAndName.name))
+                                endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + $"{item.typeAndName.type}{item.typeAndName.optional} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)};";
 
                         foreach (var item in classItem.methods)
-                            endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + "extern " + $"{item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + (v.optional ? "? " : " ") + v.name)) + ");";
+                            if (!string.IsNullOrEmpty(item.typeAndName.name))
+                                endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + "extern " + $"{item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + (v.optional ? "? " : " ") + ChangeName(v.name))) + ");";
 
                         foreach (var item in classItem.properties)
                             endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + $"extern {item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + "{ " + (item.get ? "get; " : "") + (item.set ? "set; " : "") + "}";
@@ -68,7 +71,7 @@ namespace TypeScriptToCS
                     else if (rItem is EnumDefinition)
                     {
                         EnumDefinition enumItem = (EnumDefinition)rItem;
-                        endFile += $"\t[External]\n\tpublic enum {enumItem.name + "\n\t{"}\n\t\t{string.Join(",\n\t\t", enumItem.members)}";
+                        endFile += $"\t[External]\n\tpublic enum {ChangeName(enumItem.name) + "\n\t{"}\n\t\t{string.Join(",\n\t\t", enumItem.members.ConvertAll(ChangeName))}";
                     }
 
                     endFile += "\n\t}\n";
@@ -83,7 +86,7 @@ namespace TypeScriptToCS
 
         public static string GetType (string value)
         {
-            return value.Replace("any", "object").Replace("number", "double").Replace("Number", "Double");
+            return value.Replace("any", "object").Replace("number", "double").Replace("Number", "Double").Replace("boolean", "bool");
         }
 
         private static void ReadTypeScriptFile(string tsFile, ref int index, List<NamespaceDefinition> namespaces)
@@ -96,7 +99,9 @@ namespace TypeScriptToCS
 
             for (; index < tsFile.Length; index++)
             {
+                BeginLoop:
                 SkipEmpty(tsFile, ref index);
+                if (index >= tsFile.Length) return;
                 while (tsFile[index] == '/')
                 {
                     index++;
@@ -120,15 +125,9 @@ namespace TypeScriptToCS
                     break;
 
                 BracketLoop:
-                if (tsFile[index] == '{')
-                {
-                    index++;
-                    SkipEmpty(tsFile, ref index);
-                }
-
                 if (tsFile[index] == '}')
                 {
-                    if(typeTop.Count != 0)
+                    if (typeTop.Count != 0)
                     {
                         if (typeTop.Last() is ClassDefinition)
                         {
@@ -153,12 +152,20 @@ namespace TypeScriptToCS
                     namespaceTop.RemoveAt(namespaceTop.Count - 1);
                     goto OutIfBreak;
                 }
+
+                if (tsFile[index] == '{')
+                {
+                    index++;
+                    SkipEmpty(tsFile, ref index);
+                }
+
                 goto After;
 
                 OutIfBreak:
                 if (++index >= tsFile.Length)
                     return;
                 SkipEmpty(tsFile, ref index);
+                goto BeginLoop;
                 After:
                 string word;
                 bool @static = false;
@@ -250,119 +257,126 @@ namespace TypeScriptToCS
                                 break;
 
                             case ':':
-                                SkipEmpty(tsFile, ref index);
-                                var type = SkipToEndOfWord(tsFile, ref index);
+                                {
+                                    SkipEmpty(tsFile, ref index);
+                                    var type = SkipToEndOfWord(tsFile, ref index);
+                                    SkipEmpty(tsFile, ref index);
+                                    bool optional = tsFile[index] == '?';
+                                    if (optional)
+                                    {
+                                        index++;
+                                        SkipEmpty(tsFile, ref index);
+                                    }
+
 
                                 (typeTop.Last() as ClassDefinition).fields.Add(new Field
                                 {
                                     @static = @static,
-                                    typeAndName = new TypeAndName
+                                    typeAndName = new TypeNameAndOptional
                                     {
                                         type = type,
-                                        name = word
+                                        name = word,
+                                        optional = optional
                                     }
                                 });
-
-                                SkipEmpty(tsFile, ref index);
-                                if (tsFile[index] == ';')
-                                    index++;
-                                goto BracketLoop;
-                                continue;
-
+                                    continue;
+                                }
                             default:
                                 continue;
 
                             case '(':
-                                Method method = new Method();
-                                method.typeAndName.name = word;
-                                method.@static = @static;
-
-                                SkipEmpty(tsFile, ref index);
-                                if (tsFile[index] == ')')
                                 {
-                                    index++;
-                                    SkipEmpty(tsFile, ref index);
-                                    goto Break;
-                                }
-                                
-                                for (; index < tsFile.Length; index++)
-                                {
-                                    SkipEmpty(tsFile, ref index);
-                                    bool optional = false;
-                                    bool @params = false;
-                                    if (tsFile[index] == '.')
-                                    {
-                                        index += 3;
-                                        SkipEmpty(tsFile, ref index); @params = true;
-                                    }
+                                    Method method = new Method();
+                                    method.typeAndName.name = word;
+                                    method.@static = @static;
 
-                                    string word2 = SkipToEndOfWord(tsFile, ref index);
                                     SkipEmpty(tsFile, ref index);
-
-                                    if (tsFile[index] == '?')
+                                    if (tsFile[index] == ')')
                                     {
-                                        optional = true;
                                         index++;
+                                        SkipEmpty(tsFile, ref index);
+                                        goto Break;
                                     }
 
-                                    SkipEmpty(tsFile, ref index);
-
-                                    switch (tsFile[index])
+                                    for (; index < tsFile.Length; index++)
                                     {
-                                        case ':':
+                                        SkipEmpty(tsFile, ref index);
+                                        bool optional = false;
+                                        bool @params = false;
+                                        if (tsFile[index] == '.')
+                                        {
+                                            index += 3;
+                                            SkipEmpty(tsFile, ref index); @params = true;
+                                        }
+
+                                        string word2 = SkipToEndOfWord(tsFile, ref index);
+                                        SkipEmpty(tsFile, ref index);
+
+                                        if (tsFile[index] == '?')
+                                        {
+                                            optional = true;
                                             index++;
-                                            SkipEmpty(tsFile, ref index);
-                                            string type2 = SkipToEndOfWord(tsFile, ref index);
+                                        }
 
-                                            method.parameters.Add(new TypeNameAndOptional
-                                            {
-                                                optional = optional,
-                                                @params = @params,
-                                                name = word2,
-                                                type = type2
-                                            });
-                                            SkipEmpty(tsFile, ref index);
+                                        SkipEmpty(tsFile, ref index);
 
-                                            if (tsFile[index] != ',')
-                                                goto case ')';
+                                        switch (tsFile[index])
+                                        {
+                                            case ':':
+                                                index++;
+                                                SkipEmpty(tsFile, ref index);
+                                                string type2 = SkipToEndOfWord(tsFile, ref index);
 
-                                            break;
+                                                method.parameters.Add(new TypeNameOptionalAndParams
+                                                {
+                                                    optional = optional,
+                                                    @params = @params,
+                                                    name = word2,
+                                                    type = type2
+                                                });
+                                                SkipEmpty(tsFile, ref index);
 
-                                        case ')':
-                                            index++;
-                                            SkipEmpty(tsFile, ref index);
-                                            goto Break;
+                                                if (tsFile[index] != ',')
+                                                    goto case ')';
+
+                                                break;
+
+                                            case ')':
+                                                index++;
+                                                SkipEmpty(tsFile, ref index);
+                                                goto Break;
+                                        }
                                     }
-                                }
 
-                                Break:
-                                if (tsFile[index] == ':')
-                                {
-                                    index++;
-                                    SkipEmpty(tsFile, ref index);
-                                    method.typeAndName.type = SkipToEndOfWord(tsFile, ref index);
-                                    SkipEmpty(tsFile, ref index);
-                                }
-                                else
-                                {
-                                    method.typeAndName.type = "object";
-                                }
-
-                                if (get || set)
-                                {
-                                    (typeTop.Last() as ClassDefinition).properties.Add(new Property
+                                    Break:
+                                    if (tsFile[index] == ':')
                                     {
-                                        get = get,
-                                        set = set,
-                                        @static = @static,
-                                        typeAndName = method.typeAndName
-                                    });
+                                        index++;
+                                        SkipEmpty(tsFile, ref index);
+                                        method.typeAndName.type = SkipToEndOfWord(tsFile, ref index);
+                                        SkipEmpty(tsFile, ref index);
+                                    }
+                                    else
+                                    {
+                                        method.typeAndName.type = "object";
+                                    }
+
+                                    if (get || set)
+                                    {
+                                        (typeTop.Last() as ClassDefinition).properties.Add(new Property
+                                        {
+                                            get = get,
+                                            set = set,
+                                            @static = @static,
+                                            typeAndName = method.typeAndName
+                                        });
+                                    }
+                                    else
+                                    {
+                                        (typeTop.Last() as ClassDefinition).methods.Add(method);
+                                    }
+                                    goto DoubleBreak;
                                 }
-                                else
-                                {
-                                    (typeTop.Last() as ClassDefinition).methods.Add(method);
-                                }
-                                goto DoubleBreak;
                         }
                         break;
                 }
@@ -379,12 +393,17 @@ namespace TypeScriptToCS
             for (; index < tsFile.Length; index++)
             {
                 var item = tsFile[index];
-                if (char.IsLetterOrDigit(item) || item == '[' || item == ']')
+                if (char.IsLetterOrDigit(item) || item == '[' || item == ']' || item == '<' || item == '>' || item == '_')
                     result += item;
                 else
                     return result;
             }
             return result;
+        }
+
+        public static string ChangeName (string name)
+        {
+            return new CSharpCodeProvider().CreateEscapedIdentifier(name);
         }
 
         private static void SkipEmpty (string tsFile, ref int index)

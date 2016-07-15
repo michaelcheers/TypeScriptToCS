@@ -6,6 +6,6 @@ namespace TypeScriptToCS
     {
         public TypeAndName typeAndName = new TypeAndName();
 
-        public List<TypeNameAndOptional> parameters = new List<TypeNameAndOptional>();
+        public List<TypeNameOptionalAndParams> parameters = new List<TypeNameOptionalAndParams>();
     }
 }

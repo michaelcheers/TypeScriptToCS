@@ -2,6 +2,6 @@
 {
     public class Field : ClassElement
     {
-        public TypeAndName typeAndName = new TypeAndName();
+        public TypeNameAndOptional typeAndName = new TypeNameAndOptional();
     }
 }

@@ -54,6 +54,7 @@
     <Compile Include="Property.cs" />
     <Compile Include="TypeAndName.cs" />
     <Compile Include="TypeDefinition.cs" />
+    <Compile Include="TypeNameOptionalAndParams.cs" />
     <Compile Include="TypeNameAndOptional.cs" />
     <Compile Include="TypeType.cs" />
   </ItemGroup>
