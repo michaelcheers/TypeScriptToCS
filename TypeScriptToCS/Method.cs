@@ -7,5 +7,7 @@ namespace TypeScriptToCS
         public TypeAndName typeAndName = new TypeAndName();
 
         public List<TypeNameOptionalAndParams> parameters = new List<TypeNameOptionalAndParams>();
+
+        public Method Clone() => (Method)MemberwiseClone();
     }
 }

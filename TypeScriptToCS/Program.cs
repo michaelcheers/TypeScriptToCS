@@ -71,25 +71,24 @@ namespace TypeScriptToCS
                         endFile += $"\n\t\tpublic extern {item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }";
                     foreach (var item in classItem.methods)
                     {
-                        endFile += $"\n\t\tpublic extern {item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + (v.optional ? "? " : " ") + ChangeName(v.name))) + ");";
+                        var itemClone = item.Clone();
+                        itemClone.typeAndName = itemClone.typeAndName.Clone();
+                        itemClone.typeAndName.name += "Delegate";
+                        endFile += "\n\t\t";
+                        ProcessTypeDefinition(itemClone, ref endFile);
+                        endFile += $"\n\t\tpublic extern {item.typeAndName.type} {item.typeAndName.name} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + (v.optional ? "? " : " ") + ChangeName(v.name))) + ");";
                         endFile += "\n\t\tpublic extern ";
-                        if (item.typeAndName.type == "void")
-                            if (item.parameters.Count == 0)
-                                endFile += "Action";
-                            else
-                                endFile += $"Action<{string.Join(", ", item.parameters.ConvertAll(v => v.type))}>";
-                        else
-                            if (item.parameters.Count == 0)
-                            endFile += $"Func<{item.typeAndName.type}>";
-                        else
-                            endFile += $"Func<{string.Join(", ", item.parameters.ConvertAll(v => v.type))}, {item.typeAndName.type}>";
+                        endFile += $"{item.typeAndName.name}" + "Delegate";
                         endFile += " ";
                         endFile += char.ToUpper(item.typeAndName.name[0]) + item.typeAndName.name.Substring(1);
                         endFile += " { get; set; }";
                     }
                     endFile += "\n\t}\n";
                 }
-                endFile += $"\t[External]\n\tpublic {classItem.type} {ChangeName(classItem.name)}{extendString}{string.Join(", ", classItem.extends.ConvertAll(GetType)) + "\n\t{"}";
+
+                string abstractString = classItem.@abstract ? "abstract " : string.Empty;
+
+                endFile += $"\t[External]\n\tpublic {abstractString}{classItem.type} {ChangeName(classItem.name)}{extendString}{string.Join(", ", classItem.extends.ConvertAll(GetType)) + "\n\t{"}";
 
                 string interfacePublic = classItem.type != TypeType.@interface ? "public extern " : string.Empty;
 
@@ -112,7 +111,7 @@ namespace TypeScriptToCS
             else if (rItem is Method)
             {
                 Method item = (Method)rItem;
-                endFile += $"\t[External]\n\tpublic delegate {item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + (v.optional ? "? " : " ") + ChangeName(v.name))) + ");\n";
+                endFile += $"\t[External]\n\tpublic delegate {item.typeAndName.type} {item.typeAndName.name} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + (v.optional ? "? " : " ") + ChangeName(v.name))) + ");\n";
                 return;
             }
 
@@ -204,6 +203,11 @@ namespace TypeScriptToCS
                 if (++index >= tsFile.Length)
                     return;
                 SkipEmpty(tsFile, ref index);
+                if (tsFile[index] == ';')
+                {
+                    index++;
+                    SkipEmpty(tsFile, ref index);
+                }
                 goto BeginLoop;
                 After:
                 string word;
@@ -311,11 +315,11 @@ namespace TypeScriptToCS
                             case ':':
                                 {
                                     SkipEmpty(tsFile, ref index);
-                                    string type;
+                                    string type = null;
                                     bool bracket = tsFile[index] == '{';
                                     if (bracket)
                                         type = char.ToUpper(word[0]) + word.Substring(1) + "Interface";
-                                    else
+                                    else if (!ReadFunctionType(tsFile, ref index, ref type, word + "Delegate", typeTop, namespaceTop))
                                         type = SkipToEndOfWord(tsFile, ref index);
                                     SkipEmpty(tsFile, ref index);
 
@@ -382,7 +386,12 @@ namespace TypeScriptToCS
                                             case ':':
                                                 index++;
                                                 SkipEmpty(tsFile, ref index);
-                                                string type2 = SkipToEndOfWord(tsFile, ref index);
+                                                bool bracketIn = tsFile[index] == '{';
+                                                string type2 = null;
+                                                if (bracketIn)
+                                                    type2 = word2 + "Interface";
+                                                else if (!ReadFunctionType(tsFile, ref index, ref type2, method.typeAndName.name + "Param" + method.parameters.Count + 1 + "Delegate", typeTop, namespaceTop))
+                                                    type2 = SkipToEndOfWord(tsFile, ref index);
 
                                                 method.parameters.Add(new TypeNameOptionalAndParams
                                                 {
@@ -392,6 +401,15 @@ namespace TypeScriptToCS
                                                     type = type2
                                                 });
                                                 SkipEmpty(tsFile, ref index);
+
+
+
+                                                if (bracketIn)
+                                                    typeTop.Add(new ClassDefinition
+                                                    {
+                                                        type = TypeType.@interface,
+                                                        name = type2
+                                                    });
 
                                                 if (tsFile[index] != ',')
                                                     goto case ')';
@@ -414,7 +432,7 @@ namespace TypeScriptToCS
                                         bracket = tsFile[index] == '{';
                                         if (bracket)
                                             type = char.ToUpper(word[0]) + word.Substring(1) + "Interface";
-                                        else
+                                        else if (!ReadFunctionType(tsFile, ref index, ref type, method.typeAndName.name + "Delegate", typeTop, namespaceTop))
                                             type = SkipToEndOfWord(tsFile, ref index);
                                         method.typeAndName.type = type;
                                         SkipEmpty(tsFile, ref index);
@@ -458,6 +476,78 @@ namespace TypeScriptToCS
                 }
                 DoubleBreak:;
             }
+        }
+
+        public static bool ReadFunctionType (string tsFile, ref int index, ref string outputType, string delegateName, List<TypeDefinition> typeTop, List<NamespaceDefinition> namespaceTop)
+        {
+            List<TypeNameOptionalAndParams> parameters = new List<TypeNameOptionalAndParams>();
+            if (tsFile[index] == '(')
+            {
+                SkipEmpty(tsFile, ref index);
+                if (tsFile[++index] == ')')
+                {
+                    index++;
+                    goto EndWhile;
+                }
+                while (true)
+                {
+                    SkipEmpty(tsFile, ref index);
+                    bool @params = tsFile[index] == '.';
+                    if (@params)
+                    {
+                        index += 3;
+                        SkipEmpty(tsFile, ref index);
+                    }
+                    var word = SkipToEndOfWord(tsFile, ref index);
+                    SkipEmpty(tsFile, ref index);
+                    bool optional = tsFile[index] == '?';
+                    if (optional)
+                    {
+                        index++;
+                        SkipEmpty(tsFile, ref index);
+                    }
+                    index++;
+                    SkipEmpty(tsFile, ref index);
+                    var type = SkipToEndOfWord(tsFile, ref index);
+                    parameters.Add(new TypeNameOptionalAndParams
+                    {
+                        name = word,
+                        type = type,
+                        optional = optional,
+                        @params = @params
+                    });
+                    SkipEmpty(tsFile, ref index);
+                    var nextItem = tsFile[index++];
+                    if (nextItem == ')')
+                        break;
+                }
+                EndWhile:;
+            }
+            else
+                return false;
+            SkipEmpty(tsFile, ref index);
+            string returnType = "object";
+            if (tsFile[index] == '=')
+            {
+                index++;
+                if (tsFile[index] != '>')
+                    goto EndIf;
+                index++;
+                SkipEmpty(tsFile, ref index);
+                returnType = SkipToEndOfWord(tsFile, ref index);
+            }
+            EndIf:
+            namespaceTop.Last().typeDefinitions.Add(new Method
+            {
+                typeAndName = new TypeAndName
+                {
+                    name = delegateName,
+                    type = returnType
+                },
+                parameters = parameters
+            });
+            outputType = delegateName;
+            return true;
         }
 
         private static string SkipToEndOfWord (string tsFile, ref int index)
