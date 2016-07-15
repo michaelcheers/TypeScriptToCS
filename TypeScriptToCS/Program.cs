@@ -85,7 +85,7 @@ namespace TypeScriptToCS
                             endFile += $"Func<{string.Join(", ", item.parameters.ConvertAll(v => v.type))}, {item.typeAndName.type}>";
                         endFile += " ";
                         endFile += char.ToUpper(item.typeAndName.name[0]) + item.typeAndName.name.Substring(1);
-                        endFile += ";";
+                        endFile += " { get; set; }";
                     }
                     endFile += "\n\t}\n";
                 }
