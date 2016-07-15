@@ -68,7 +68,7 @@ namespace TypeScriptToCS
                 {
                     endFile += $"\t[ObjectLiteral]\n\tpublic class {classItem.name}ObjectLiteral : {classItem.name}\n\t{"{"}";
                     foreach (var item in classItem.fields)
-                        endFile += $"\n\t\tpublic extern {item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }";
+                        endFile += $"\n\t\t[FieldProperty]\n\t\tpublic extern {item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }";
                     foreach (var item in classItem.methods)
                     {
                         var itemClone = item.Clone();
@@ -138,8 +138,14 @@ namespace TypeScriptToCS
             for (; index < tsFile.Length; index++)
             {
                 BeginLoop:
-                SkipEmpty(tsFile, ref index);
+
                 if (index >= tsFile.Length) return;
+                if (tsFile[index] == ']')
+                {
+                    index++;
+                    SkipEmpty(tsFile, ref index);
+                }
+                SkipEmpty(tsFile, ref index);
                 while (tsFile[index] == '/')
                 {
                     index++;
@@ -155,6 +161,7 @@ namespace TypeScriptToCS
                     }
 
                     SkipEmpty(tsFile, ref index);
+                    if (index >= tsFile.Length) return;
                 }
 
                 SkipEmpty(tsFile, ref index);
@@ -203,6 +210,7 @@ namespace TypeScriptToCS
                 if (++index >= tsFile.Length)
                     return;
                 SkipEmpty(tsFile, ref index);
+                if (index >= tsFile.Length) return;
                 if (tsFile[index] == ';')
                 {
                     index++;
@@ -213,9 +221,16 @@ namespace TypeScriptToCS
                 string word;
                 bool @static = false;
                 bool @abstract = false;
+                bool optionalField = false;
                 /*bool get = false;
                 bool set = false;*/
-
+                SkipEmpty(tsFile, ref index);
+                if (tsFile[index] == '[')
+                {
+                    optionalField = true;
+                    index++;
+                    SkipEmpty(tsFile, ref index);
+                }
                 do
                 {
                     word = SkipToEndOfWord(tsFile, ref index);
@@ -331,7 +346,7 @@ namespace TypeScriptToCS
                                         {
                                             type = type,
                                             name = word,
-                                            optional = optional
+                                            optional = optionalField
                                         }
                                     });
                                     if (bracket)
@@ -387,9 +402,16 @@ namespace TypeScriptToCS
                                                 index++;
                                                 SkipEmpty(tsFile, ref index);
                                                 bool bracketIn = tsFile[index] == '{';
+                                                int endBracketArrIndex = tsFile.IndexOf('}', index) + 1;
+                                                string arr = "";
+                                                while (tsFile[endBracketArrIndex] == '[')
+                                                {
+                                                    arr += "[]";
+                                                    endBracketArrIndex += 2;
+                                                }
                                                 string type2 = null;
                                                 if (bracketIn)
-                                                    type2 = word2 + "Interface";
+                                                    type2 = word2 + "Interface" + arr;
                                                 else if (!ReadFunctionType(tsFile, ref index, ref type2, method.typeAndName.name + "Param" + method.parameters.Count + 1 + "Delegate", typeTop, namespaceTop))
                                                     type2 = SkipToEndOfWord(tsFile, ref index);
 
@@ -405,11 +427,14 @@ namespace TypeScriptToCS
 
 
                                                 if (bracketIn)
+                                                {
                                                     typeTop.Add(new ClassDefinition
                                                     {
                                                         type = TypeType.@interface,
                                                         name = type2
                                                     });
+                                                    goto BracketLoop;
+                                                }
 
                                                 if (tsFile[index] != ',')
                                                     goto case ')';
@@ -547,6 +572,12 @@ namespace TypeScriptToCS
                 parameters = parameters
             });
             outputType = delegateName;
+            SkipEmpty(tsFile, ref index);
+            while (tsFile[index] == '[')
+            {
+                index += 2;
+                outputType += "[]";
+            }
             return true;
         }
 
