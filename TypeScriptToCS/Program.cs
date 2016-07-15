@@ -94,7 +94,10 @@ namespace TypeScriptToCS
                     endFile += $"\n\t\t{interfacePublic}" + (item.@static ? "static " : "") + $"{item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }";
 
                 foreach (var item in classItem.methods)
-                    endFile += $"\n\t\t{interfacePublic}" + (item.@static ? "static " : "") + $"{item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional ? $" = default({v.type})" : string.Empty))) + ");";
+                    if (item.typeAndName.name == "constructor")
+                        endFile += $"\n\t\tpublic extern {classItem.name} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional ? $" = default({v.type})" : string.Empty))) + ");";
+                    else
+                        endFile += $"\n\t\t{interfacePublic}" + (item.@static ? "static " : "") + $"{item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional ? $" = default({v.type})" : string.Empty))) + ");";
                 /*foreach (var item in classItem.properties)
                     endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + $"extern {item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + "{ " + (item.get ? "get; " : "") + (item.set ? "set; " : "") + "}";*/
             }
