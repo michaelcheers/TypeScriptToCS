@@ -12,6 +12,7 @@ namespace TypeScriptToCS
         //public List<Property> properties = new List<Property>();
         public List<Field> fields = new List<Field>();
         public List<string> extends = new List<string>();
+        public bool @abstract;
         public string name;
         public TypeType type;
     }

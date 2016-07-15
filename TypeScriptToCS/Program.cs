@@ -66,7 +66,7 @@ namespace TypeScriptToCS
 
                 if (classItem.type == TypeType.@interface && !(classItem.fields.Count == 0 && classItem.methods.Count == 0/* && classItem.properties.Count == 0*/))
                 {
-                    endFile += $"\t[ObjectLiteral]\n\tpublic class {classItem.name}ObjectLiteral\n\t{"{"}";
+                    endFile += $"\t[ObjectLiteral]\n\tpublic class {classItem.name}ObjectLiteral : {classItem.name}\n\t{"{"}";
                     foreach (var item in classItem.fields)
                         endFile += $"\n\t\tpublic extern {item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }";
                     foreach (var item in classItem.methods)
@@ -83,6 +83,9 @@ namespace TypeScriptToCS
                             endFile += $"Func<{item.typeAndName.type}>";
                         else
                             endFile += $"Func<{string.Join(", ", item.parameters.ConvertAll(v => v.type))}, {item.typeAndName.type}>";
+                        endFile += " ";
+                        endFile += char.ToUpper(item.typeAndName.name[0]) + item.typeAndName.name.Substring(1);
+                        endFile += ";";
                     }
                     endFile += "\n\t}\n";
                 }
@@ -205,6 +208,7 @@ namespace TypeScriptToCS
                 After:
                 string word;
                 bool @static = false;
+                bool @abstract = false;
                 /*bool get = false;
                 bool set = false;*/
 
@@ -216,6 +220,9 @@ namespace TypeScriptToCS
                         case "static":
                             @static = true;
                             break;
+                        case "abstract":
+                            @abstract = true;
+                            break;
                         /*case "get":
                             get = true;
                             break;
@@ -225,7 +232,7 @@ namespace TypeScriptToCS
                     }
                     SkipEmpty(tsFile, ref index);
                 }
-                while (word == "export" || word == "declare" || word == "static" /*|| word == "get" || word == "set"*/ || word == "function" || word == "var" || word == "const");
+                while (word == "export" || word == "declare" || word == "static" /*|| word == "get" || word == "set"*/ || word == "function" || word == "var" || word == "const" || word == "abstract");
                 switch (word)
                 {
                     case "class":
@@ -233,7 +240,8 @@ namespace TypeScriptToCS
                         typeTop.Add(new ClassDefinition
                         {
                             name = SkipToEndOfWord(tsFile, ref index),
-                            type = (TypeType)Enum.Parse(typeof(TypeType), word)
+                            type = (TypeType)Enum.Parse(typeof(TypeType), word),
+                            @abstract = @abstract
                         });
                         SkipEmpty(tsFile, ref index);
 
@@ -396,13 +404,19 @@ namespace TypeScriptToCS
                                                 goto Break;
                                         }
                                     }
-
                                     Break:
+                                    bool bracket = false;
+                                    string type = "object";
                                     if (tsFile[index] == ':')
                                     {
                                         index++;
                                         SkipEmpty(tsFile, ref index);
-                                        method.typeAndName.type = SkipToEndOfWord(tsFile, ref index);
+                                        bracket = tsFile[index] == '{';
+                                        if (bracket)
+                                            type = char.ToUpper(word[0]) + word.Substring(1) + "Interface";
+                                        else
+                                            type = SkipToEndOfWord(tsFile, ref index);
+                                        method.typeAndName.type = type;
                                         SkipEmpty(tsFile, ref index);
                                     }
                                     else
@@ -431,6 +445,12 @@ namespace TypeScriptToCS
                                     {
                                         (typeTop.Last() as ClassDefinition).methods.Add(method);
                                     }
+                                    if (bracket)
+                                        typeTop.Add(new ClassDefinition
+                                        {
+                                            type = TypeType.@interface,
+                                            name = type
+                                        });
                                     goto DoubleBreak;
                                 }
                         }
