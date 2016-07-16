@@ -33,8 +33,6 @@ namespace TypeScriptToCS
                 Environment.Exit(0);
             }
 
-            List<NamespaceDefinition> nameSpaceDefinitions = new List<NamespaceDefinition>();
-
             int index = 0;
             ReadTypeScriptFile(tsFile, ref index, nameSpaceDefinitions);
 
@@ -54,7 +52,9 @@ namespace TypeScriptToCS
 
             File.WriteAllText("output.cs", endFile);
         }
-        
+
+        static List<NamespaceDefinition> nameSpaceDefinitions = new List<NamespaceDefinition>();
+
         public static void ProcessTypeDefinition (TypeDefinition rItem, ref string endFile)
         {
             if (rItem is ClassDefinition)
@@ -66,10 +66,18 @@ namespace TypeScriptToCS
 
                 if (classItem.type == TypeType.@interface && !(classItem.fields.Count == 0 && classItem.methods.Count == 0/* && classItem.properties.Count == 0*/))
                 {
+                    List<Field> fields = new List<Field>(classItem.fields);
+                    List<Method> methods = new List<TypeScriptToCS.Method>(classItem.methods);
+                    var extends = GetExtends(classItem);
+                    foreach (var item in extends)
+                    {
+                        fields.AddRange(item.fields);
+                        methods.AddRange(item.methods);
+                    }
                     endFile += $"\t[ObjectLiteral]\n\tpublic class {classItem.name}ObjectLiteral : {classItem.name}\n\t{"{"}";
-                    foreach (var item in classItem.fields)
+                    foreach (var item in fields)
                         endFile += $"\n#pragma warning disable CS0626\n\t\tpublic extern {item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }\n#pragma warning restore CS0626";
-                    foreach (var item in classItem.methods)
+                    foreach (var item in methods)
                     {
                         var itemClone = item.Clone();
                         itemClone.typeAndName = itemClone.typeAndName.Clone();
@@ -99,7 +107,7 @@ namespace TypeScriptToCS
                     if (item.typeAndName.name == "constructor")
                         endFile += $"\n#pragma warning disable CS0824\n\t\tpublic extern {classItem.name} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional ? $" = default({v.type})" : string.Empty))) + ");\n#pragma warning restore CS0824";
                     else
-                        endFile += $"\n#pragma warning disable CS0626\n\t\t{interfacePublic}" + (item.@static ? "static " : "") + $"{item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional ? $" = default({v.type})" : string.Empty))) + ");\n#pragma warning restore CS0626";
+                        endFile += $"\n#pragma warning disable CS0626\n\t\t{interfacePublic}" + (item.@static ? "static " : "") + $"{item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional ? $" = default({v.type})" : string.Empty))) + $"){GetWhereString(item.typeWheres)};\n#pragma warning restore CS0626";
                 /*foreach (var item in classItem.properties)
                     endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + $"extern {item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + "{ " + (item.get ? "get; " : "") + (item.set ? "set; " : "") + "}";*/
             }
@@ -118,8 +126,53 @@ namespace TypeScriptToCS
             endFile += "\n\t}\n";
         }
 
+        static string GetWhereString (KeyValuePair<string, string> value) => $"where {value.Key} : {value.Value}";
+        static string GetWhereString(Dictionary<string, string> value)
+        {
+            if (value.Count == 0) return "";
+            else
+            {
+                string result = "";
+                foreach (var item in value)
+                    result += " " + GetWhereString(item);
+                return result;
+            }
+        }
+
+        public static List<ClassDefinition> GetExtends(TypeDefinition definition)
+        {
+            List<ClassDefinition> result = new List<ClassDefinition>();
+            ClassDefinition definitionClass = definition as ClassDefinition;
+            if (definitionClass != null)
+            {
+                foreach (var item in definitionClass.extends)
+                {
+                    var type = FindType(item) as ClassDefinition;
+                    if (type != null)
+                    {
+                        result.AddRange(GetExtends(type));
+                        result.Add(type);
+                    }
+                }
+            }
+            return result;
+        }
+
+        public static TypeDefinition FindType (string name)
+        {
+            foreach (var @namespace in nameSpaceDefinitions)
+                foreach (var type in @namespace.typeDefinitions)
+                {
+                    if (type.name == name)
+                        return type;
+                }
+            return null;
+        }
+
         public static string GetType (string value)
         {
+            if (value.Length > 1)
+                if (value.EndsWith("]") && value[value.Length - 2] != '[') value = value.Substring(0, value.Length - 1);
             if (value.StartsWith("Array<"))
                 return GetType(value.Substring(6, value.Length - 7) + "[]");//Array<int>
             else if (value.EndsWith("[]"))
@@ -253,6 +306,42 @@ namespace TypeScriptToCS
                     SkipEmpty(tsFile, ref index);
                 }
                 while (word == "export" || word == "declare" || word == "static" /*|| word == "get" || word == "set"*/ || word == "function" || word == "var" || word == "const" || word == "abstract");
+                bool ext = false;
+                Dictionary<string, string> whereTypesExt = new Dictionary<string, string>();
+                List<string> typeArguments = new List<string>();
+                if (word.Contains('<') && !word.Contains('>'))
+                {
+                    index -= word.Length - word.IndexOf('<');
+                    word = word.Substring(0, word.IndexOf('<') + 1);
+                    while (true)
+                    {
+                        var toAdd = SkipToEndOfWord(tsFile, ref index);
+                        if (toAdd == "extends" || toAdd == "implements")
+                            ext = true;
+                        else if (ext)
+                        {
+                            var last = toAdd.EndsWith(">");
+                            whereTypesExt.Add(typeArguments.Last(), last ? toAdd.Substring(0, toAdd.Length - 1) : toAdd);
+                            if (last)
+                            {
+                                word += ">";
+                                break;
+                            }
+                            ext = false;
+                        }
+                        else
+                        {
+                            var last = toAdd.EndsWith(">");
+                            typeArguments.Add(last ? toAdd.Substring(0, toAdd.Length - 1) : toAdd);
+                            word += typeArguments.Last();
+                            if (last)
+                            {
+                                word += ">";
+                                break;
+                            }
+                        }
+                    }
+                }
                 switch (word)
                 {
                     case "class":
@@ -365,9 +454,12 @@ namespace TypeScriptToCS
 
                             case '(':
                                 {
-                                    Method method = new Method();
+                                    Method method = new Method
+                                    {
+                                        typeWheres = whereTypesExt,
+                                        @static = @static
+                                    };
                                     method.typeAndName.name = word;
-                                    method.@static = @static;
 
                                     SkipEmpty(tsFile, ref index);
                                     if (tsFile[index] == ')')
@@ -435,7 +527,7 @@ namespace TypeScriptToCS
                                                     typeTop.Add(new ClassDefinition
                                                     {
                                                         type = TypeType.@interface,
-                                                        name = type2
+                                                        name = type2.Substring(0, type2.Length - arr.Length)
                                                     });
                                                     goto BracketLoop;
                                                 }
@@ -509,6 +601,16 @@ namespace TypeScriptToCS
 
         public static bool ReadFunctionType (string tsFile, ref int index, ref string outputType, string delegateName, List<TypeDefinition> typeTop, List<NamespaceDefinition> namespaceTop)
         {
+            int i = 0;
+            foreach (var item in namespaceTop.Last().typeDefinitions)
+            {
+                if (item is Method && (item as Method).typeAndName.name == delegateName)
+                {
+                    delegateName = (i == 0 ? delegateName : delegateName.Substring(0, delegateName.Length - i.ToString().Length));
+                    i++;
+                }
+            }
+            delegateName = delegateName.Replace(">", "").Replace("<", "");
             List<TypeNameOptionalAndParams> parameters = new List<TypeNameOptionalAndParams>();
             if (tsFile[index] == '(')
             {

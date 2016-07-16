@@ -9,6 +9,6 @@ namespace TypeScriptToCS
     public class EnumDefinition : TypeDefinition
     {
         public List<string> members = new List<string>();
-        public string name;
+        public string name { get; set; }
     }
 }

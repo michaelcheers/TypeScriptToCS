@@ -2,5 +2,6 @@
 {
     public interface TypeDefinition
     {
+        string name { get; set; }
     }
 }
