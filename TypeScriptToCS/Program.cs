@@ -68,7 +68,7 @@ namespace TypeScriptToCS
                 {
                     endFile += $"\t[ObjectLiteral]\n\tpublic class {classItem.name}ObjectLiteral : {classItem.name}\n\t{"{"}";
                     foreach (var item in classItem.fields)
-                        endFile += $"\n\t\t[FieldProperty]\n\t\tpublic extern {item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }";
+                        endFile += $"\n\t\tpublic extern {item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }";
                     foreach (var item in classItem.methods)
                     {
                         var itemClone = item.Clone();
@@ -93,7 +93,7 @@ namespace TypeScriptToCS
                 string interfacePublic = classItem.type != TypeType.@interface ? "public extern " : string.Empty;
 
                 foreach (var item in classItem.fields)
-                    endFile += $"\n\t\t{interfacePublic}" + (item.@static ? "static " : "") + $"{item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }";
+                    endFile += $"\n\t\t[FieldProperty]\n\t\t{interfacePublic}" + (item.@static ? "static " : "") + $"{item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }";
 
                 foreach (var item in classItem.methods)
                     if (item.typeAndName.name == "constructor")
