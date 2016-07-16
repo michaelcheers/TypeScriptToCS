@@ -68,7 +68,7 @@ namespace TypeScriptToCS
                 {
                     endFile += $"\t[ObjectLiteral]\n\tpublic class {classItem.name}ObjectLiteral : {classItem.name}\n\t{"{"}";
                     foreach (var item in classItem.fields)
-                        endFile += $"\n\t\tpublic extern {item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }";
+                        endFile += $"\n#pragma warning disable CS0626\n\t\tpublic extern {item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }\n#pragma warning restore CS0626";
                     foreach (var item in classItem.methods)
                     {
                         var itemClone = item.Clone();
@@ -76,12 +76,12 @@ namespace TypeScriptToCS
                         itemClone.typeAndName.name += "Delegate";
                         endFile += "\n";
                         ProcessTypeDefinition(itemClone, ref endFile);
-                        endFile += $"\n\t\tpublic extern {item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + (v.optional ? "? " : " ") + ChangeName(v.name))) + ");";
-                        endFile += "\n\t\tpublic extern ";
+                        endFile += $"\n#pragma warning disable CS0626\n\t\tpublic extern {item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + (v.optional ? "? " : " ") + ChangeName(v.name))) + ");\n#pragma warning restore CS0626";
+                        endFile += "\n#pragma warning disable CS0626\n\t\tpublic extern ";
                         endFile += $"{item.typeAndName.name}Delegate";
                         endFile += " ";
                         endFile += $"{char.ToLower(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}";
-                        endFile += " { get; set; }";
+                        endFile += " { get; set; }\n#pragma warning restore CS0626";
                     }
                     endFile += "\n\t}\n";
                 }
@@ -93,13 +93,13 @@ namespace TypeScriptToCS
                 string interfacePublic = classItem.type != TypeType.@interface ? "public extern " : string.Empty;
 
                 foreach (var item in classItem.fields)
-                    endFile += $"\n\t\t[FieldProperty]\n\t\t{interfacePublic}" + (item.@static ? "static " : "") + $"{item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }";
+                    endFile += $"\n#pragma warning disable CS0626\n\t\t[FieldProperty]\n\t\t{interfacePublic}" + (item.@static ? "static " : "") + $"{item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }\n#pragma warning restore CS0626";
 
                 foreach (var item in classItem.methods)
                     if (item.typeAndName.name == "constructor")
-                        endFile += $"\n\t\tpublic extern {classItem.name} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional ? $" = default({v.type})" : string.Empty))) + ");";
+                        endFile += $"\n#pragma warning disable CS0824\n\t\tpublic extern {classItem.name} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional ? $" = default({v.type})" : string.Empty))) + ");\n#pragma warning restore CS0824";
                     else
-                        endFile += $"\n\t\t{interfacePublic}" + (item.@static ? "static " : "") + $"{item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional ? $" = default({v.type})" : string.Empty))) + ");";
+                        endFile += $"\n#pragma warning disable CS0626\n\t\t{interfacePublic}" + (item.@static ? "static " : "") + $"{item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional ? $" = default({v.type})" : string.Empty))) + ");\n#pragma warning restore CS0626";
                 /*foreach (var item in classItem.properties)
                     endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + $"extern {item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + "{ " + (item.get ? "get; " : "") + (item.set ? "set; " : "") + "}";*/
             }
@@ -237,6 +237,7 @@ namespace TypeScriptToCS
                     switch (word)
                     {
                         case "static":
+                        case "function":
                             @static = true;
                             break;
                         case "abstract":
@@ -355,6 +356,8 @@ namespace TypeScriptToCS
                                             type = TypeType.@interface,
                                             name = type
                                         });
+                                    if (tsFile[index] == '}')
+                                        index--;
                                     continue;
                                 }
                             default:
@@ -404,10 +407,11 @@ namespace TypeScriptToCS
                                                 bool bracketIn = tsFile[index] == '{';
                                                 int endBracketArrIndex = tsFile.IndexOf('}', index) + 1;
                                                 string arr = "";
+                                                if (bracketIn)
                                                 while (tsFile[endBracketArrIndex] == '[')
                                                 {
                                                     arr += "[]";
-                                                    endBracketArrIndex += 2;
+                                                    tsFile = tsFile.Remove(endBracketArrIndex, 2);
                                                 }
                                                 string type2 = null;
                                                 if (bracketIn)
