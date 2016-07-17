@@ -124,7 +124,7 @@ namespace TypeScriptToCS
                 string interfacePublic = classItem.type != TypeType.@interface ? "extern " : string.Empty;
 
                 foreach (var item in fields)
-                    endFile += "\n#pragma warning disable CS0626\n\t\t[FieldProperty]\n\t\t" + (classItem.type != TypeType.@interface ? "public " : string.Empty) + $"{interfacePublic}" + (item.@static || classItem.name == "GlobalClass" ? "static " : "") + $"{item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }\n#pragma warning restore CS0626";
+                    endFile += "\n\t\t[FieldProperty]\n\t\t" + (classItem.type != TypeType.@interface ? "public " : string.Empty) + $"{interfacePublic}" + (item.@static || classItem.name == "GlobalClass" ? "static " : "") + $"{item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }";
 
                 foreach (var item in methods)
                     if (item.typeAndName.name == "constructor")
