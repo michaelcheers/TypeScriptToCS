@@ -13,5 +13,6 @@ namespace TypeScriptToCS
         public Dictionary<string, string> typeWheres = new Dictionary<string, string>();
 
         public string name { get { return typeAndName.name; } set { typeAndName.name = value; } }
+        public string CapitalName => char.ToUpper(name[0]) + name.Substring(1);
     }
 }

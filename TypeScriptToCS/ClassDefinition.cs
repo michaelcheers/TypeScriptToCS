@@ -15,5 +15,6 @@ namespace TypeScriptToCS
         public bool @abstract;
         public string name { get; set; }
         public TypeType type;
+        public Dictionary<string, string> typeWheres = new Dictionary<string, string>();
     }
 }
