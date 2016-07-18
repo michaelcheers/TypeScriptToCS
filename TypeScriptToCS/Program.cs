@@ -67,7 +67,8 @@ namespace TypeScriptToCS
                     endFile += "\n}\n";
             }
 
-            File.WriteAllText("output.cs", endFile);
+            Console.WriteLine("Choose a file name...");
+            File.WriteAllText(Console.ReadLine(), endFile);
         }
 
         static List<NamespaceDefinition> nameSpaceDefinitions = new List<NamespaceDefinition>();
@@ -142,9 +143,9 @@ namespace TypeScriptToCS
                 string interfacePublic = classItem.type != TypeType.@interface ? "extern " : string.Empty;
                 string pragmaStart = (classItem.type == TypeType.@class ? "\n#pragma warning disable CS0626" : string.Empty);
                 string pragmaEnd = (classItem.type == TypeType.@class ? "\n#pragma warning restore CS0626" : string.Empty);
-
+                
                 foreach (var item in fields)
-                    endFile += pragmaStart + "\n\t\t[FieldProperty]\n\t\t" + (classItem.type != TypeType.@interface ? "public " : string.Empty) + $"{interfacePublic}" + (item.@static || classItem.name == "GlobalClass" ? "static " : "") + $"{item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }" + pragmaEnd;
+                    endFile += pragmaStart + "\n\t\t[FieldProperty]\n\t\t" + (char.IsUpper(item.typeAndName.name[0]) ? "[Name(false)]\n\t\t" : "") + (classItem.type != TypeType.@interface ? "public " : string.Empty) + $"{interfacePublic}" + (item.@static || classItem.name == "GlobalClass" ? "static " : "") + $"{item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }" + pragmaEnd;
 
                 List<Method> methoders = new List<Method>();
                 foreach (var item in methods)
@@ -378,8 +379,16 @@ namespace TypeScriptToCS
                     }
                     EndIf:
 
-                    namespaces.Add(namespaceTop.Last());
-                    namespaceTop.RemoveAt(namespaceTop.Count - 1);
+                    if (namespaceTop.Count != 0)
+                    {
+                        namespaces.Add(namespaceTop.Last());
+                        namespaceTop.RemoveAt(namespaceTop.Count - 1);
+                    }
+                    else
+                    {
+                        Console.WriteLine("No more namespaces. Press enter to continue...");
+                        while (Console.ReadKey(true).Key != ConsoleKey.Enter) ;
+                    }
                     goto OutIfBreak;
                 }
 
@@ -420,6 +429,7 @@ namespace TypeScriptToCS
                         case "function":
                         case "var":
                         case "let":
+                        case "const":
                             @static = true;
                             break;
                         case "abstract":
@@ -646,7 +656,13 @@ namespace TypeScriptToCS
                                                     do
                                                     {
                                                         SkipEmpty(tsFile, ref index);
-                                                        anys.Add(SkipToEndOfWord(tsFile, ref index));
+                                                        if (tsFile[index] == '\'' || tsFile[index] == '"')
+                                                        {
+                                                            anys.Add("string");
+                                                            index = tsFile.IndexOf(tsFile[index], index + 1) + 1;
+                                                        }
+                                                        else
+                                                            anys.Add(SkipToEndOfWord(tsFile, ref index));
                                                         SkipEmpty(tsFile, ref index);
                                                     }
                                                     while (tsFile[index++] == '|');
@@ -760,6 +776,7 @@ namespace TypeScriptToCS
                     i++;
                 }
             }
+            int oldIndex = index;
             string tWord = SkipToEndOfWord(tsFile, ref index);
             var where = GenericRead(tsFile, ref index, ref tWord);
             delegateName = delegateName.Replace(">", "").Replace("<", "");
@@ -807,7 +824,10 @@ namespace TypeScriptToCS
                 EndWhile:;
             }
             else
+            {
+                index = oldIndex;
                 return false;
+            }
             SkipEmpty(tsFile, ref index);
             string returnType = "object";
             if (tsFile[index] == '=')
