@@ -462,8 +462,10 @@ namespace TypeScriptToCS
                         SkipEmpty(tsFile, ref index);
 
                         string nWord;
-                        while ((nWord = SkipToEndOfWord(tsFile, ref index)) == "extends" || nWord == "implements")
+                        while ((nWord = SkipToEndOfWord(tsFile, ref index)) == "extends" || nWord == "implements" || tsFile[index] == ',')
                         {
+                            if (tsFile[index] == ',')
+                                index++;
                             SkipEmpty(tsFile, ref index);
                             (typeTop.Last() as ClassDefinition).extends.Add(SkipToEndOfWord(tsFile, ref index));
                             SkipEmpty(tsFile, ref index);
