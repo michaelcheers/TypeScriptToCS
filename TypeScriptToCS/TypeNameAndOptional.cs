@@ -3,7 +3,7 @@
     public class TypeNameAndOptional : TypeAndName
     {
         public bool optional;
-        public string OptionalString => optional ? "?" : "";
+        public string OptionalString => type == "string" ? "" : (optional ? "?" : "");
 
         public override bool Equals(object obj)
         {

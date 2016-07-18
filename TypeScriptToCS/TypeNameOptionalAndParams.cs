@@ -12,10 +12,10 @@ namespace TypeScriptToCS
 
         public override bool Equals(object obj)
         {
-            var tObj = obj as TypeNameAndOptional;
+            var tObj = obj as TypeNameOptionalAndParams;
             if (tObj == null)
                 return false;
-            return base.Equals(tObj) && optional == tObj.optional;
+            return base.Equals(tObj) && @params == tObj.@params;
         }
     }
 }
