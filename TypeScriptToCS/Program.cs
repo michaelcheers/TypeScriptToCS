@@ -418,7 +418,8 @@ namespace TypeScriptToCS
                     {
                         case "static":
                         case "function":
-                        case "continue":
+                        case "var":
+                        case "let":
                             @static = true;
                             break;
                         case "abstract":
@@ -433,7 +434,7 @@ namespace TypeScriptToCS
                     }
                     SkipEmpty(tsFile, ref index);
                 }
-                while (word == "export" || word == "declare" || word == "static" /*|| word == "get" || word == "set"*/ || word == "function" || word == "var" || word == "const" || word == "abstract");
+                while (word == "export" || word == "declare" || word == "static" /*|| word == "get" || word == "set"*/ || word == "function" || word == "var" || word == "const" || word == "abstract" || word == "let");
                 var whereTypesExt = GenericRead(tsFile, ref index, ref word);
                 switch (word)
                 {
@@ -759,6 +760,8 @@ namespace TypeScriptToCS
                     i++;
                 }
             }
+            string tWord = SkipToEndOfWord(tsFile, ref index);
+            var where = GenericRead(tsFile, ref index, ref tWord);
             delegateName = delegateName.Replace(">", "").Replace("<", "");
             List<TypeNameOptionalAndParams> parameters = new List<TypeNameOptionalAndParams>();
             if (tsFile[index] == '(')
@@ -824,7 +827,8 @@ namespace TypeScriptToCS
                     name = delegateName,
                     type = returnType
                 },
-                parameters = parameters
+                parameters = parameters,
+                typeWheres = where
             });
             outputType = delegateName;
             SkipEmpty(tsFile, ref index);
