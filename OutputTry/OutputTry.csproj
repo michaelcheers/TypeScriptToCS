@@ -49,6 +49,10 @@
       <HintPath>..\packages\Bridge.Html5.1.14.0\lib\net40\Bridge.Html5.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Bridge.WebGL, Version=1.8.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Bridge.WebGL.1.8.1\lib\net40\Bridge.WebGL.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <None Include="Bridge\bridge.json" />
