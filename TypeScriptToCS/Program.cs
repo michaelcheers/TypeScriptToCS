@@ -50,6 +50,18 @@ namespace TypeScriptToCS
 
             foreach (var namespaceItem in nameSpaceDefinitions)
             {
+                if (string.IsNullOrEmpty(namespaceItem.name))
+                    continue;
+                if (namespaceItem.typeDefinitions.Count == 1)
+                {
+                    if (namespaceItem.typeDefinitions[0].name == "GlobalClass")
+                    {
+                        namespaceItem.typeDefinitions[0].name = namespaceItem.name;
+                        (namespaceItem.typeDefinitions[0] as ClassDefinition).@static = true;
+                        ProcessTypeDefinition(namespaceItem.typeDefinitions[0], ref endFile);
+                        continue;
+                    }
+                }
                 if ((namespaceItem.name ?? "") != "")
                     endFile += $"namespace {namespaceItem.name}\n{ "{" }\n";
 
@@ -136,7 +148,7 @@ namespace TypeScriptToCS
                 }
 
                 string abstractString = classItem.@abstract ? "abstract " : string.Empty;
-                string staticString = classItem.name == "GlobalClass" ? "static " : string.Empty;
+                string staticString = classItem.@static ? "static " : string.Empty;
 
                 endFile += $"\t[External]\n\tpublic {staticString}{abstractString}{classItem.type} {ChangeName(classItem.name)}{extendString}{string.Join(", ", classItem.extends.ConvertAll(GetType)) + GetWhereString(classItem.typeWheres) + "\n\t{"}";
 
@@ -157,7 +169,7 @@ namespace TypeScriptToCS
                         else
                             endFile += pragmaStart + "\n\t\t" + (((!(item is ImplicitMethod)) && classItem.type != TypeType.@interface) ? "public " : string.Empty) + interfacePublic + (item.@static || classItem.name == "GlobalClass" ? "static " : "") + item.typeAndName.type + " " + (item.indexer ? "this" : ((item is ImplicitMethod ? ((item as ImplicitMethod).@interface + ".") : ""))) + $"{item.CapitalName} {item.StartBracket}" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional && !(item is ImplicitMethod) ? $" = default({v.type})" : string.Empty))) + $"{item.EndBracket}{GetWhereString(item.typeWheres)}" + (item.indexer ? " { get; set; }" : ";") + pragmaEnd;
                     }
-                if (classItem.type == TypeType.@class && !classItem.methods.Any(v => v.name == "constructor") && classItem.name != "GlobalClass")
+                if (classItem.type == TypeType.@class && !classItem.@static && !classItem.methods.Any(v => v.name == "constructor") && classItem.name != "GlobalClass")
                     endFile += $"\n#pragma warning disable CS0824\n\t\textern {GetTypeWithOutGenerics(classItem.name)} ();\n#pragma warning restore CS0824";
                 /*foreach (var item in classItem.properties)
                     endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + $"extern {item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + "{ " + (item.get ? "get; " : "") + (item.set ? "set; " : "") + "}";*/
@@ -383,6 +395,7 @@ namespace TypeScriptToCS
                     {
                         namespaces.Add(namespaceTop.Last());
                         namespaceTop.RemoveAt(namespaceTop.Count - 1);
+                        typeTop.RemoveAt(typeTop.Count - 1);
                     }
                     else
                     {
@@ -490,7 +503,8 @@ namespace TypeScriptToCS
                         ClassDefinition globalClass = new ClassDefinition
                         {
                             name = "GlobalClass",
-                            type = TypeType.@class
+                            type = TypeType.@class,
+                            @static = true
                         };
                         Array.ForEach(new Action<ClassDefinition>[] { typeTop.Add, namespaceTop.Last().typeDefinitions.Add }, v => v(globalClass));
                         if (tsFile[index] == '\'')

@@ -13,6 +13,7 @@ namespace TypeScriptToCS
         public List<Field> fields = new List<Field>();
         public List<string> extends = new List<string>();
         public bool @abstract;
+        public bool @static;
         public string name { get; set; }
         public TypeType type;
         public Dictionary<string, string> typeWheres = new Dictionary<string, string>();
