@@ -21,5 +21,6 @@ namespace TypeScriptToCS
         public char StartBracket => indexer ? '[' : '(';
         public char EndBracket => indexer ? ']' : ')';
         public bool indexer;
+        public ClassDefinition from;
     }
 }

@@ -4,6 +4,8 @@
     {
         public TypeNameAndOptional typeAndName = new TypeNameAndOptional();
 
+        public ClassDefinition from;
+
         public string CSName
         {
             get

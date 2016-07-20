@@ -55,7 +55,7 @@ namespace TypeScriptToCS
                     {
                         namespaceItem.typeDefinitions[0].name = namespaceItem.name;
                         (namespaceItem.typeDefinitions[0] as ClassDefinition).@static = true;
-                        ProcessTypeDefinition(namespaceItem.typeDefinitions[0], ref endFile);
+                        ProcessTypeDefinition(namespaceItem.typeDefinitions[0], ref endFile, namespaceItem);
                         continue;
                     }
                 }
@@ -68,7 +68,7 @@ namespace TypeScriptToCS
                     if (!names.Contains(rItem.name))
                     {
                         names.Add(rItem.name);
-                        ProcessTypeDefinition(rItem, ref endFile);
+                        ProcessTypeDefinition(rItem, ref endFile, namespaceItem);
                     }
                 }
 
@@ -82,7 +82,7 @@ namespace TypeScriptToCS
 
         static List<NamespaceDefinition> nameSpaceDefinitions = new List<NamespaceDefinition>();
 
-        public static void ProcessTypeDefinition (TypeDefinition rItem, ref string endFile)
+        public static void ProcessTypeDefinition (TypeDefinition rItem, ref string endFile, NamespaceDefinition @namespace)
         {
             if (rItem is ClassDefinition)
             {
@@ -133,7 +133,7 @@ namespace TypeScriptToCS
                         else
                             itemClone.typeAndName.name += "Delegate";
                         endFile += "\n";
-                        ProcessTypeDefinition(itemClone, ref endFile);
+                        ProcessTypeDefinition(itemClone, ref endFile, @namespace);
                         endFile += $"\n#pragma warning disable CS0626\n\t\tpublic extern {item.typeAndName.type.Replace("$", "DollarSign")} " + (item.indexer ? "this" : item.CSName) + $" {item.StartBracket}" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional ? " = default(" + v.type + ")" : ""))) + item.EndBracket + (item.indexer ? " { get; set; }" : ";") + "\n#pragma warning restore CS0626";
                         endFile += "\n#pragma warning disable CS0626\n\t\tpublic extern ";
                         endFile += itemClone.name;
@@ -151,7 +151,7 @@ namespace TypeScriptToCS
                 string abstractString = classItem.@abstract ? "abstract " : string.Empty;
                 string staticString = classItem.@static ? "static " : string.Empty;
 
-                endFile += $"\t[External]\n\tpublic {staticString}{abstractString}{classItem.type} {ChangeName(classItem.name)}{extendString}{string.Join(", ", classItem.extends.ConvertAll(GetType)) + GetWhereString(classItem.typeWheres) + "\n\t{"}";
+                endFile += "\t[External]" + (classItem.name == "GlobalClass" ? $"\n\t[Name(\"{@namespace.name}\")]" : "") + $"\n\tpublic {staticString}{abstractString}{classItem.type} {ChangeName(classItem.name)}{extendString}{string.Join(", ", classItem.extends.ConvertAll(GetType)) + GetWhereString(classItem.typeWheres) + "\n\t{"}";
 
                 string interfacePublic = classItem.type != TypeType.@interface ? "extern " : string.Empty;
                 string pragmaStart = (classItem.type == TypeType.@class ? "\n#pragma warning disable CS0626" : string.Empty);
@@ -642,6 +642,7 @@ namespace TypeScriptToCS
                                     (typeTop.Last(v => v is ClassDefinition) as ClassDefinition).fields.Add(new Field
                                     {
                                         @static = @static,
+                                        from = typeTop.Last(v => v is ClassDefinition) as ClassDefinition,
                                         typeAndName = new TypeNameAndOptional
                                         {
                                             type = type,
@@ -669,7 +670,8 @@ namespace TypeScriptToCS
                                     {
                                         typeWheres = whereTypesExt,
                                         @static = @static,
-                                        indexer = item == '['
+                                        indexer = item == '[',
+                                        from = typeTop.Last(v => v is ClassDefinition) as ClassDefinition
                                     };
                                     var startBracket = item;
                                     var endBracket = item == '[' ? ']' : ')';
