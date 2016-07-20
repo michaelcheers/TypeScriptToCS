@@ -115,6 +115,7 @@ namespace TypeScriptToCS
                     GetMethodsAndFields(classItem, out mFields, out mMethods);
                     endFile += $"\t[ObjectLiteral]\n\tpublic class JSON{classItem.name} : {classItem.name}\n\t{"{"}";
                     List<string> fieldNames = new List<string>();
+                    List<Method> methodsDone = new List<Method>();
                     foreach (var item in mFields)
                         if (!fieldNames.Contains(item.typeAndName.name))
                         {
@@ -123,6 +124,8 @@ namespace TypeScriptToCS
                         }
                     foreach (var item in mMethods)
                     {
+                        if (methodsDone.Any(v => item.typeAndName.name == v.typeAndName.name))
+                            continue;
                         var itemClone = item.Clone();
                         itemClone.typeAndName = itemClone.typeAndName.Clone();
                         if (itemClone.typeAndName.name == "")
@@ -140,6 +143,7 @@ namespace TypeScriptToCS
                         else
                             endFile += ChangeName(char.ToLower(item.CSName[0]) + item.CSName.Substring(1));
                         endFile += " { get; set; }\n#pragma warning restore CS0626";
+                        methodsDone.Add(item);
                     }
                     endFile += "\n\t}\n";
                 }
@@ -197,10 +201,10 @@ namespace TypeScriptToCS
                     if (item.type == TypeType.@interface)
                     {
                         foreach (var fieldItem in item.fields)
-                            if (!classItem.fields.Any(v => v.typeAndName.name == fieldItem.typeAndName.name))
+                            if (!fields.Any(v => v.typeAndName.name == fieldItem.typeAndName.name))
                                 fields.Add(fieldItem);
                         foreach (var methodItem in item.methods)
-                            if (!classItem.methods.Any(v => v.typeAndName.name == methodItem.typeAndName.name && v.typeAndName.type == methodItem.typeAndName.type && v.parameters.SequenceEqual(methodItem.parameters)))
+                            if (!methods.Any(v => v.typeAndName.name == methodItem.typeAndName.name && v.typeAndName.type == methodItem.typeAndName.type && v.parameters.SequenceEqual(methodItem.parameters)))
                                 if (classItem.methods.Any(v => v.typeAndName.name == methodItem.typeAndName.name))
                                     methods.Add(new ImplicitMethod
                                     {
