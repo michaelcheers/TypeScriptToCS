@@ -22,9 +22,6 @@ namespace TypeScriptToCS
 
         static void Main(string[] args)
         {
-            Console.WriteLine("Namespace name?");
-            string nameSpaceName = Console.ReadLine();
-
             Console.WriteLine("Typescript file location?");
             string tsFileLocation = Console.ReadLine();
             string tsFile = "";
@@ -46,7 +43,7 @@ namespace TypeScriptToCS
             int index = 0;
             ReadTypeScriptFile(tsFile, ref index, nameSpaceDefinitions);
 
-            string endFile = "using Bridge;\nusing System;\nusing Bridge.Html5;\nusing RegExp = Bridge.Text.RegularExpressions.Regex;\nusing number = System.Double;\nusing Number = System.Double;\n\n\n";
+            string endFile = "using System;\nusing Bridge;\nusing Bridge.Html5;\nusing Bridge.WebGL;\nusing any = System.Object;\nusing boolean = System.Boolean;\nusing Function = System.Delegate;\nusing RegExp = Bridge.Text.RegularExpressions.Regex;\nusing number = System.Double;\nusing Number = System.Double;\n\n\n";
 
             foreach (var namespaceItem in nameSpaceDefinitions)
             {
@@ -122,7 +119,7 @@ namespace TypeScriptToCS
                         if (!fieldNames.Contains(item.typeAndName.name))
                         {
                             fieldNames.Add(item.typeAndName.name);
-                            endFile += $"\n#pragma warning disable CS0626\n\t\tpublic extern {item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }\n#pragma warning restore CS0626";
+                            endFile += $"\n#pragma warning disable CS0626\n\t\tpublic extern {item.typeAndName.type.Replace("$", "DollarSign")}{item.typeAndName.OptionalString} {item.CSName}" + " { get; set; }\n#pragma warning restore CS0626";
                         }
                     foreach (var item in mMethods)
                     {
@@ -134,14 +131,14 @@ namespace TypeScriptToCS
                             itemClone.typeAndName.name += "Delegate";
                         endFile += "\n";
                         ProcessTypeDefinition(itemClone, ref endFile);
-                        endFile += $"\n#pragma warning disable CS0626\n\t\tpublic extern {item.typeAndName.type} " + (item.indexer ? "this" : item.CapitalName) + $" {item.StartBracket}" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional ? " = default(" + v.type + ")" : ""))) + item.EndBracket + (item.indexer ? " { get; set; }" : ";") + "\n#pragma warning restore CS0626";
+                        endFile += $"\n#pragma warning disable CS0626\n\t\tpublic extern {item.typeAndName.type.Replace("$", "DollarSign")} " + (item.indexer ? "this" : item.CSName) + $" {item.StartBracket}" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional ? " = default(" + v.type + ")" : ""))) + item.EndBracket + (item.indexer ? " { get; set; }" : ";") + "\n#pragma warning restore CS0626";
                         endFile += "\n#pragma warning disable CS0626\n\t\tpublic extern ";
-                        endFile += itemClone.typeAndName.name;
+                        endFile += itemClone.name;
                         endFile += " ";
-                        if (string.IsNullOrEmpty(item.name))
+                        if (string.IsNullOrEmpty(item.typeAndName.name))
                             endFile += "indexer";
                         else
-                            endFile += $"{char.ToLower(item.name[0])}{item.name.Substring(1)}";
+                            endFile += ChangeName(char.ToLower(item.CSName[0]) + item.CSName.Substring(1));
                         endFile += " { get; set; }\n#pragma warning restore CS0626";
                     }
                     endFile += "\n\t}\n";
@@ -157,19 +154,19 @@ namespace TypeScriptToCS
                 string pragmaEnd = (classItem.type == TypeType.@class ? "\n#pragma warning restore CS0626" : string.Empty);
                 
                 foreach (var item in fields)
-                    endFile += pragmaStart + "\n\t\t[FieldProperty]\n\t\t" + (char.IsUpper(item.typeAndName.name[0]) ? "[Name(false)]\n\t\t" : "") + (classItem.type != TypeType.@interface ? "public " : string.Empty) + $"{interfacePublic}" + (item.@static || classItem.name == "GlobalClass" ? "static " : "") + $"{item.typeAndName.type}{item.typeAndName.OptionalString} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + " { get; set; }" + pragmaEnd;
+                    endFile += pragmaStart + "\n\t\t[FieldProperty]\n\t\t" + (char.IsUpper(item.typeAndName.name[0]) ? "[Name(false)]\n\t\t" : "") + (classItem.type != TypeType.@interface ? "public " : string.Empty) + $"{interfacePublic}" + (item.@static || classItem.name == "GlobalClass" ? "static " : "") + $"{item.typeAndName.type}{item.typeAndName.OptionalString} {item.CSName}" + " { get; set; }" + pragmaEnd;
 
                 List<Method> methoders = new List<Method>();
                 foreach (var item in methods)
-                    if (!methoders.Any(v => v.name == item.name && v.parameters.SequenceEqual(item.parameters) && v.typeAndName.type == item.typeAndName.type))
+                    if (!methoders.Any(v => v.typeAndName.name == item.typeAndName.name && v.parameters.SequenceEqual(item.parameters) && v.typeAndName.type == item.typeAndName.type))
                     {
                         methoders.Add(item);
                         if (item.typeAndName.name == "constructor")
                             endFile += $"\n#pragma warning disable CS0824\n\t\tpublic extern {GetTypeWithOutGenerics(classItem.name)} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional ? $" = default({v.type})" : string.Empty))) + ");\n#pragma warning restore CS0824";
                         else
-                            endFile += pragmaStart + "\n\t\t" + (((!(item is ImplicitMethod)) && classItem.type != TypeType.@interface) ? "public " : string.Empty) + interfacePublic + (item.@static || classItem.name == "GlobalClass" ? "static " : "") + item.typeAndName.type + " " + (item.indexer ? "this" : ((item is ImplicitMethod ? ((item as ImplicitMethod).@interface + ".") : ""))) + $"{item.CapitalName} {item.StartBracket}" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional && !(item is ImplicitMethod) ? $" = default({v.type})" : string.Empty))) + $"{item.EndBracket}{GetWhereString(item.typeWheres)}" + (item.indexer ? " { get; set; }" : ";") + pragmaEnd;
+                            endFile += pragmaStart + "\n\t\t" + (item.Dollar ? $"[Name(\"{item.typeAndName.name}\")]\n\t\t" : string.Empty) + (((!(item is ImplicitMethod)) && classItem.type != TypeType.@interface) ? "public " : string.Empty) + interfacePublic + (item.@static || classItem.name == "GlobalClass" ? "static " : "") + item.typeAndName.type + " " + (item.indexer ? "this" : ((item is ImplicitMethod ? ((item as ImplicitMethod).@interface + ".") : ""))) + $"{item.CSName} {item.StartBracket}" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional && !(item is ImplicitMethod) ? $" = default({v.type})" : string.Empty))) + $"{item.EndBracket}{GetWhereString(item.typeWheres)}" + (item.indexer ? " { get; set; }" : ";") + pragmaEnd;
                     }
-                if (classItem.type == TypeType.@class && !classItem.@static && !classItem.methods.Any(v => v.name == "constructor") && classItem.name != "GlobalClass")
+                if (classItem.type == TypeType.@class && !classItem.@static && !classItem.methods.Any(v => v.typeAndName.name == "constructor") && classItem.name != "GlobalClass")
                     endFile += $"\n#pragma warning disable CS0824\n\t\textern {GetTypeWithOutGenerics(classItem.name)} ();\n#pragma warning restore CS0824";
                 /*foreach (var item in classItem.properties)
                     endFile += "\n\t\tpublic " + (item.@static ? "static " : "") + $"extern {item.typeAndName.type} {char.ToUpper(item.typeAndName.name[0])}{item.typeAndName.name.Substring(1)}" + "{ " + (item.get ? "get; " : "") + (item.set ? "set; " : "") + "}";*/
@@ -177,12 +174,13 @@ namespace TypeScriptToCS
             else if (rItem is EnumDefinition)
             {
                 EnumDefinition enumItem = (EnumDefinition)rItem;
-                endFile += $"\t[External]\n\tpublic enum {ChangeName(enumItem.name) + "\n\t{"}\n\t\t{string.Join(",\n\t\t", enumItem.members.ConvertAll(ChangeName))}";
+                string emitString = enumItem.emit == EnumDefinition.Emit.Value ? "" : "[Enum(Emit." + enumItem.emit + ")]\n\t";
+                endFile += $"\t[External]\n\t{emitString}public enum {ChangeName(enumItem.name) + "\n\t{"}\n\t\t{string.Join(",\n\t\t", enumItem.members.ConvertAll(ChangeName))}";
             }
             else if (rItem is Method)
             {
                 Method item = (Method)rItem;
-                endFile += $"\t[External]\n\tpublic delegate {item.typeAndName.type} {item.typeAndName.name} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional ? $" = default({v.type})" : ""))) + ");\n";
+                endFile += $"\t[External]\n\tpublic delegate {item.typeAndName.type} {item.name} (" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional ? $" = default({v.type})" : ""))) + ");\n";
                 return;
             }
 
@@ -256,7 +254,10 @@ namespace TypeScriptToCS
             foreach (var @namespace in nameSpaceDefinitions)
                 foreach (var type in @namespace.typeDefinitions)
                 {
-                    if (type.name == name)
+                    var tName = type.name;
+                    if (type is Method)
+                        tName = (type as Method).typeAndName.name;
+                    if (tName == name)
                         return type;
                 }
             return null;
@@ -270,17 +271,8 @@ namespace TypeScriptToCS
                 return GetType(value.Substring(6, value.Length - 7) + "[]");//Array<int>
             else if (value.EndsWith("[]"))
                 return GetType(value.Substring(0, value.Length - 2)) + "[]";
-            return typeTable.ContainsKey(value) ? typeTable[value] : value;
+            return value;
         }
-
-        public static Dictionary<string, string> typeTable = new Dictionary<string, string>
-        {
-            {"any", "object" },
-            {"boolean", "bool" },
-            {"Function", "Delegate" },
-            {"number", "double" },
-            {"Number", "Double" }
-        };
 
         static Dictionary<string, string> GenericRead(string tsFile, ref int index, ref string word)
         {
@@ -417,6 +409,8 @@ namespace TypeScriptToCS
                 OutIfBreak:
                 if (++index >= tsFile.Length)
                     return;
+                if (tsFile[index] == '}')
+                    goto BeginLoop;
                 SkipEmpty(tsFile, ref index);
                 if (index >= tsFile.Length) return;
                 if (tsFile[index] == ';')
@@ -461,29 +455,82 @@ namespace TypeScriptToCS
                 var whereTypesExt = GenericRead(tsFile, ref index, ref word);
                 switch (word)
                 {
+                    case "type":
+                        {
+                            string name = SkipToEndOfWord(tsFile, ref index);
+                            var wheres = GenericRead(tsFile, ref index, ref name);
+                            SkipEmpty(tsFile, ref index);
+                            if (tsFile[index++] != '=')
+                            {
+                                index--;
+                                goto default;
+                            }
+                            SkipEmpty(tsFile, ref index);
+                            string type = default(string);
+                            if (!ReadFunctionType(tsFile, ref index, ref type, name, typeTop, namespaceTop, global))
+                            {
+                                List<string> anys = new List<string>();
+                                List<string> strings = new List<string>();
+                                do
+                                {
+                                    SkipEmpty(tsFile, ref index);
+                                    if (tsFile[index] == '\'' || tsFile[index] == '"')
+                                    {
+                                        strings.Add(tsFile.Substring(index + 1, tsFile.IndexOf(tsFile[index], index + 1) - index - 1));
+                                        anys.Add("string");
+                                        index = tsFile.IndexOf(tsFile[index], index + 1) + 1;
+                                    }
+                                    else
+                                        anys.Add(SkipToEndOfWord(tsFile, ref index));
+                                    SkipEmpty(tsFile, ref index);
+                                }
+                                while (tsFile[index++] == '|');
+                                index--;
+                                if (strings.Count == anys.Count)
+                                {
+                                    var typeDefinitions = namespaceTop.Count == 0 ? global.typeDefinitions : namespaceTop.Last().typeDefinitions;
+                                    typeDefinitions.Add(new EnumDefinition
+                                    {
+                                        name = name,
+                                        emit = EnumDefinition.Emit.StringNamePreserveCase,
+                                        members = strings
+                                    });
+                                    type = name;
+                                    break;
+                                }
+                                type = string.Join(", ", anys);
+                                if (anys.Count > 1)
+                                    type = "Any<" + type + ">";
+                            }
+                            break;
+                        }
                     case "class":
                     case "interface":
-                        string name = SkipToEndOfWord(tsFile, ref index);
-                        var wheres = GenericRead(tsFile, ref index, ref name);
-                        typeTop.Add(new ClassDefinition
                         {
-                            name = name,
-                            type = (TypeType)Enum.Parse(typeof(TypeType), word),
-                            @abstract = @abstract,
-                            typeWheres = wheres
-                        });
-                        SkipEmpty(tsFile, ref index);
+                            string name = SkipToEndOfWord(tsFile, ref index);
+                            if (string.IsNullOrEmpty(name))
+                                goto default;
+                            var wheres = GenericRead(tsFile, ref index, ref name);
+                            typeTop.Add(new ClassDefinition
+                            {
+                                name = name,
+                                type = (TypeType)Enum.Parse(typeof(TypeType), word),
+                                @abstract = @abstract,
+                                typeWheres = wheres
+                            });
+                            SkipEmpty(tsFile, ref index);
 
-                        string nWord;
-                        while ((nWord = SkipToEndOfWord(tsFile, ref index)) == "extends" || nWord == "implements" || tsFile[index] == ',')
-                        {
-                            if (tsFile[index] == ',')
-                                index++;
-                            SkipEmpty(tsFile, ref index);
-                            (typeTop.Last() as ClassDefinition).extends.Add(SkipToEndOfWord(tsFile, ref index));
-                            SkipEmpty(tsFile, ref index);
+                            string nWord;
+                            while ((nWord = SkipToEndOfWord(tsFile, ref index)) == "extends" || nWord == "implements" || tsFile[index] == ',')
+                            {
+                                if (tsFile[index] == ',')
+                                    index++;
+                                SkipEmpty(tsFile, ref index);
+                                (typeTop.Last() as ClassDefinition).extends.Add(SkipToEndOfWord(tsFile, ref index));
+                                SkipEmpty(tsFile, ref index);
+                            }
+                            break;
                         }
-                        break;
 
                     case "enum":
                         typeTop.Add(new EnumDefinition
@@ -500,6 +547,11 @@ namespace TypeScriptToCS
                         {
                             name = SkipToEndOfWord(tsFile, ref index)
                         });
+                        if (string.IsNullOrEmpty(namespaceTop.Last().name))
+                        {
+                            namespaceTop.RemoveAt(namespaceTop.Count - 1);
+                            goto default;
+                        }
                         ClassDefinition globalClass = new ClassDefinition
                         {
                             name = "GlobalClass",
@@ -666,7 +718,7 @@ namespace TypeScriptToCS
                                                 string type2 = null;
                                                 if (bracketIn)
                                                     type2 = word2 + "Interface" + arr;
-                                                else if (!ReadFunctionType(tsFile, ref index, ref type2, method.typeAndName.name + "Param" + method.parameters.Count + 1 + "Delegate", typeTop, namespaceTop, global))
+                                                else if (!ReadFunctionType(tsFile, ref index, ref type2, method.typeAndName.name + "Param" + (method.parameters.Count + 1) + "Delegate", typeTop, namespaceTop, global))
                                                 {
                                                     List<string> anys = new List<string>();
                                                     do
@@ -886,7 +938,7 @@ namespace TypeScriptToCS
             for (; index < tsFile.Length; index++)
             {
                 var item = tsFile[index];
-                if (char.IsLetterOrDigit(item) || item == '[' || item == ']' || item == '<' || item == '>' || item == '_' || item == '.')
+                if (char.IsLetterOrDigit(item) || item == '[' || item == ']' || item == '<' || item == '>' || item == '_' || item == '.' || item == '$')
                     result += item;
                 else
                 {
