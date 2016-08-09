@@ -775,7 +775,28 @@ namespace TypeScriptToCS
                                             index++;
                                         }
                                         else if (!ReadFunctionType(tsFile, ref index, ref type, method.typeAndName.name + "Delegate", typeTop, namespaceTop, global))
-                                            type = SkipToEndOfWord(tsFile, ref index);
+                                        {
+                                            List<string> anys = new List<string>();
+                                            do
+                                            {
+                                                SkipEmpty(tsFile, ref index);
+                                                if (tsFile[index] == '\'' || tsFile[index] == '"')
+                                                {
+                                                    anys.Add("string");
+                                                    index = tsFile.IndexOf(tsFile[index], index + 1) + 1;
+                                                }
+                                                else
+                                                    anys.Add(SkipToEndOfWord(tsFile, ref index));
+                                                SkipEmpty(tsFile, ref index);
+                                            }
+                                            while (tsFile[index++] == '|');
+                                            index--;
+                                            type = string.Join(", ", anys);
+                                            if (anys.Count > 1)
+                                                type = "Any<" + type + ">";
+                                            method.typeAndName.type = type;
+                                            SkipEmpty(tsFile, ref index);
+                                    }
                                         method.typeAndName.type = type;
                                         SkipEmpty(tsFile, ref index);
                                     }
