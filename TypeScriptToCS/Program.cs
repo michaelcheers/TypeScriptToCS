@@ -43,7 +43,7 @@ namespace TypeScriptToCS
             int index = 0;
             ReadTypeScriptFile(tsFile, ref index, nameSpaceDefinitions);
 
-            string endFile = "using System;\nusing Bridge;\nusing Bridge.Html5;\nusing Bridge.WebGL;\nusing any = System.Object;\nusing boolean = System.Boolean;\nusing Function = System.Delegate;\nusing RegExp = Bridge.Text.RegularExpressions.Regex;\nusing number = System.Double;\nusing Number = System.Double;\n\n\n";
+            string endFile = "using System;\nusing Bridge;\nusing Bridge.Html5;\nusing Bridge.WebGL;\nusing any = System.Object;\nusing boolean = System.Boolean;\nusing Function = System.Delegate;\nusing RegExp = Bridge.Text.RegularExpressions.Regex;\nusing number = System.Double;\nusing Number = System.Double;\n\n";
 
             foreach (var namespaceItem in nameSpaceDefinitions)
             {
@@ -340,6 +340,7 @@ namespace TypeScriptToCS
 
                 if (index >= tsFile.Length) return;
                 SkipEmpty(tsFile, ref index);
+                if (index >= tsFile.Length) return;
                 while (tsFile[index] == '/')
                 {
                     index++;
@@ -600,17 +601,16 @@ namespace TypeScriptToCS
                                 {
                                     SkipEmpty(tsFile, ref index);
                                     string type = null;
-                                    string arr = "";
-                                    bool bracket = tsFile[index] == '{';
-                                    int endBracketArrIndex = tsFile.IndexOf('}', index) + 1;
-                                    if (bracket)
-                                    while (tsFile[endBracketArrIndex] == '[')
+                                    TypeDefinition typeDef;
+                                    if (index >= tsFile.Length) return;
+                                    if (ReadBracketType(tsFile, ref index, (string.IsNullOrEmpty(word) ? typeTop.Last(v => v is ClassDefinition).name + "indexer" : typeTop.Last(v => v is ClassDefinition).name + char.ToUpper(word[0]) + word.Substring(1)) + "Interface", out typeDef, out type))
                                     {
-                                        arr += "[]";
-                                        tsFile = tsFile.Remove(endBracketArrIndex, 2);
+                                        if (namespaceTop.Count == 0)
+                                            global.typeDefinitions.Add(typeDef);
+                                        else
+                                            namespaceTop.Last().typeDefinitions.Add(typeDef);
+                                        index++;
                                     }
-                                    if (bracket)
-                                        type = char.ToUpper(word[0]) + word.Substring(1) + "Interface";
                                     else if (!ReadFunctionType(tsFile, ref index, ref type, word + "Delegate", typeTop, namespaceTop, global))
                                     {
                                         List<string> anys = new List<string>();
@@ -619,6 +619,8 @@ namespace TypeScriptToCS
                                             SkipEmpty(tsFile, ref index);
                                             anys.Add(SkipToEndOfWord(tsFile, ref index));
                                             SkipEmpty(tsFile, ref index);
+                                            if (index + 1 >= tsFile.Length)
+                                                return;
                                         }
                                         while (tsFile[index++] == '|');
                                         index--;
@@ -627,17 +629,7 @@ namespace TypeScriptToCS
                                             type = "Any<" + type + ">";
                                     }
                                     SkipEmpty(tsFile, ref index);
-
-                                    int i = 0;
-                                    var typeDefinitions = namespaceTop.Count == 0 ? global.typeDefinitions : namespaceTop.Last().typeDefinitions;
-                                    foreach (var it in typeDefinitions)
-                                    {
-                                        if (it is ClassDefinition && (it as ClassDefinition).name == type)
-                                        {
-                                            type = (i == 0 || i == 1 ? type : type.Substring(0, type.Length - i.ToString().Length)) + (i == 0 ? "" : i.ToString());
-                                            i++;
-                                        }
-                                    }
+                                    
 
                                     (typeTop.Last(v => v is ClassDefinition) as ClassDefinition).fields.Add(new Field
                                     {
@@ -650,12 +642,7 @@ namespace TypeScriptToCS
                                             optional = optionalField
                                         }
                                     });
-                                    if (bracket)
-                                        typeTop.Add(new ClassDefinition
-                                        {
-                                            type = TypeType.@interface,
-                                            name = type
-                                        });
+                                    if (index >= tsFile.Length) return;
                                     if (tsFile[index] == '}')
                                         index--;
                                     continue;
@@ -712,18 +699,16 @@ namespace TypeScriptToCS
                                             case ':':
                                                 index++;
                                                 SkipEmpty(tsFile, ref index);
-                                                bool bracketIn = tsFile[index] == '{';
-                                                int endBracketArrIndex = tsFile.IndexOf('}', index) + 1;
-                                                string arr = "";
-                                                if (bracketIn)
-                                                while (tsFile[endBracketArrIndex] == '[')
-                                                {
-                                                    arr += "[]";
-                                                    tsFile = tsFile.Remove(endBracketArrIndex, 2);
-                                                }
                                                 string type2 = null;
-                                                if (bracketIn)
-                                                    type2 = word2 + "Interface" + arr;
+                                                TypeDefinition typeDef;
+                                                if (ReadBracketType(tsFile, ref index, word2 + "Interface", out typeDef, out type2))
+                                                {
+                                                    if (namespaceTop.Count == 0)
+                                                        global.typeDefinitions.Add(typeDef);
+                                                    else
+                                                        namespaceTop.Last().typeDefinitions.Add(typeDef);
+                                                    index++;
+                                                }
                                                 else if (!ReadFunctionType(tsFile, ref index, ref type2, method.typeAndName.name + "Param" + (method.parameters.Count + 1) + "Delegate", typeTop, namespaceTop, global))
                                                 {
                                                     List<string> anys = new List<string>();
@@ -756,16 +741,7 @@ namespace TypeScriptToCS
                                                 SkipEmpty(tsFile, ref index);
 
 
-
-                                                if (bracketIn)
-                                                {
-                                                    typeTop.Add(new ClassDefinition
-                                                    {
-                                                        type = TypeType.@interface,
-                                                        name = type2.Substring(0, type2.Length - arr.Length)
-                                                    });
-                                                    goto BracketLoop;
-                                                }
+                                                
 
                                                 if (tsFile[index] != ',')
                                                     goto case ')';
@@ -780,15 +756,24 @@ namespace TypeScriptToCS
                                         }
                                     }
                                     Break:
-                                    bool bracket = false;
                                     string type = "object";
                                     if (tsFile[index] == ':')
                                     {
                                         index++;
                                         SkipEmpty(tsFile, ref index);
-                                        bracket = tsFile[index] == '{';
-                                        if (bracket)
-                                            type = char.ToUpper(word[0]) + word.Substring(1) + "Interface";
+
+                                        TypeDefinition typeDef;
+
+                                        if (index >= tsFile.Length) return;
+
+                                        if (ReadBracketType(tsFile, ref index, (string.IsNullOrEmpty(word) ? typeTop.Last().name + "indexerInterface" : typeTop.Last().name + char.ToUpper(word[0]) + word.Substring(1)) + "Interface", out typeDef, out type))
+                                        {
+                                            if (namespaceTop.Count == 0)
+                                                global.typeDefinitions.Add(typeDef);
+                                            else
+                                                namespaceTop.Last().typeDefinitions.Add(typeDef);
+                                            index++;
+                                        }
                                         else if (!ReadFunctionType(tsFile, ref index, ref type, method.typeAndName.name + "Delegate", typeTop, namespaceTop, global))
                                             type = SkipToEndOfWord(tsFile, ref index);
                                         method.typeAndName.type = type;
@@ -820,12 +805,7 @@ namespace TypeScriptToCS
                                     {
                                         (typeTop.Last(v => v is ClassDefinition) as ClassDefinition).methods.Add(method);
                                     }
-                                    if (bracket)
-                                        typeTop.Add(new ClassDefinition
-                                        {
-                                            type = TypeType.@interface,
-                                            name = type
-                                        });
+                                    if (index >= tsFile.Length) return;
                                     if (tsFile[index] == '}')
                                         index--;
                                     goto DoubleBreak;
@@ -835,6 +815,42 @@ namespace TypeScriptToCS
                 }
                 DoubleBreak:;
             }
+        }
+
+        public static bool ReadBracketType (string tsFile, ref int index, string typeName, out TypeDefinition typeDefintion, out string type)
+        {
+            type = "object";
+            typeDefintion = null;
+            SkipEmpty(tsFile, ref index);
+            bool bracket = tsFile[index] == '{';
+            if (bracket)
+            {
+                List<NamespaceDefinition> fakeNamespace = new List<NamespaceDefinition>();
+                int fakeIndex = 0;
+                int Fn = 0, FIndex = index;
+                for (;; FIndex++)
+                {
+                    switch (tsFile[FIndex])
+                    {
+                        case '{':
+                            Fn++;
+                            break;
+                        case '}':
+                            if (--Fn <= 0)
+                                goto DoubleBreakIn;
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                DoubleBreakIn:
+                ReadTypeScriptFile(tsFile.Substring(index, FIndex - index), ref fakeIndex, fakeNamespace);
+                index += fakeIndex;
+                typeDefintion = fakeNamespace[0].typeDefinitions[0];
+                type = typeName;
+                typeDefintion.name = type;
+            }
+            return bracket;
         }
 
         public static bool ReadFunctionType (string tsFile, ref int index, ref string outputType, string delegateName, List<TypeDefinition> typeTop, List<NamespaceDefinition> namespaceTop, NamespaceDefinition global)
@@ -852,6 +868,11 @@ namespace TypeScriptToCS
             }
             int oldIndex = index;
             string tWord = SkipToEndOfWord(tsFile, ref index);
+            if (index >= tsFile.Length - 1)
+            {
+                index = oldIndex;
+                return false;
+            }
             var where = GenericRead(tsFile, ref index, ref tWord);
             delegateName = delegateName.Replace(">", "").Replace("<", "");
             List<TypeNameOptionalAndParams> parameters = new List<TypeNameOptionalAndParams>();
