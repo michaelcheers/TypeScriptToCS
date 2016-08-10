@@ -777,11 +777,13 @@ namespace TypeScriptToCS
                                         else if (!ReadFunctionType(tsFile, ref index, ref type, method.typeAndName.name + "Delegate", typeTop, namespaceTop, global))
                                         {
                                             List<string> anys = new List<string>();
+                                            List<string> strings = new List<string>();
                                             do
                                             {
                                                 SkipEmpty(tsFile, ref index);
                                                 if (tsFile[index] == '\'' || tsFile[index] == '"')
                                                 {
+                                                    strings.Add(tsFile.Substring(index + 1, tsFile.IndexOf(tsFile[index], index + 1) - index - 1));
                                                     anys.Add("string");
                                                     index = tsFile.IndexOf(tsFile[index], index + 1) + 1;
                                                 }
@@ -791,12 +793,22 @@ namespace TypeScriptToCS
                                             }
                                             while (tsFile[index++] == '|');
                                             index--;
+                                            if (strings.Count == anys.Count)
+                                            {
+                                                var typeDefinitions = namespaceTop.Count == 0 ? global.typeDefinitions : namespaceTop.Last().typeDefinitions;
+                                                typeDefinitions.Add(new EnumDefinition
+                                                {
+                                                    name = word,
+                                                    emit = EnumDefinition.Emit.StringNamePreserveCase,
+                                                    members = strings
+                                                });
+                                                type = word;
+                                                break;
+                                            }
                                             type = string.Join(", ", anys);
                                             if (anys.Count > 1)
                                                 type = "Any<" + type + ">";
-                                            method.typeAndName.type = type;
-                                            SkipEmpty(tsFile, ref index);
-                                    }
+                                        }
                                         method.typeAndName.type = type;
                                         SkipEmpty(tsFile, ref index);
                                     }
