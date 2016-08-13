@@ -287,6 +287,7 @@ namespace TypeScriptToCS
             if (word.Contains('<') && !word.Contains('>'))
             {
                 index -= word.Length - word.IndexOf('<');
+                index++;
                 word = word.Substring(0, word.IndexOf('<') + 1);
                 while (true)
                 {
@@ -303,6 +304,9 @@ namespace TypeScriptToCS
                             break;
                         }
                         ext = false;
+                        SkipEmpty(tsFile, ref index);
+                        if (tsFile[index] == ',') index++;
+                        SkipEmpty(tsFile, ref index);
                     }
                     else
                     {
@@ -314,6 +318,8 @@ namespace TypeScriptToCS
                             word += ">";
                             break;
                         }
+                        if (tsFile[index] == ',') index++;
+                        SkipEmpty(tsFile, ref index);
                     }
                 }
             }
