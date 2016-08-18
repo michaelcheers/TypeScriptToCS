@@ -129,9 +129,9 @@ namespace TypeScriptToCS
                         var itemClone = item.Clone();
                         itemClone.typeAndName = itemClone.typeAndName.Clone();
                         if (itemClone.typeAndName.name == "")
-                            itemClone.typeAndName.name = classItem.name + "IndexerDelegate";
+							itemClone.typeAndName.name = FormatName(classItem.name, "IndexerDelegate");
                         else
-                            itemClone.typeAndName.name += "Delegate";
+							itemClone.typeAndName.name = FormatName(itemClone.typeAndName.name, "Delegate");
                         endFile += "\n";
                         ProcessTypeDefinition(itemClone, ref endFile, @namespace);
                         endFile += $"\n#pragma warning disable CS0626\n\t\tpublic extern {item.typeAndName.type.Replace("$", "DollarSign")} " + (item.indexer ? "this" : item.CSName) + $" {item.StartBracket}" + string.Join(", ", item.parameters.ConvertAll(v => (v.@params ? "params " : string.Empty) + v.type + " " + ChangeName(v.name) + (v.optional ? " = default(" + v.type + ")" : ""))) + item.EndBracket + (item.indexer ? " { get; set; }" : ";") + "\n#pragma warning restore CS0626";
@@ -278,6 +278,7 @@ namespace TypeScriptToCS
             return value;
         }
 
+		/* DEPRECIATED
         static Dictionary<string, string> GenericRead(string tsFile, ref int index, ref string word)
         {
             SkipEmpty(tsFile, ref index);
@@ -319,8 +320,168 @@ namespace TypeScriptToCS
             }
             return whereTypesExt;
         }
+		*/
 
-        private static void ReadTypeScriptFile(string tsFile, ref int index, List<NamespaceDefinition> namespaces)
+		static string FirstUpper(string value)
+		{
+			string result = value;
+			if (!String.IsNullOrEmpty(value)) {
+				result = char.ToUpper(result[0]) + result.Substring(1);
+			}
+			return result;
+		}
+
+		static string FirstLower(string value)
+		{
+			string result = value;
+			if (!String.IsNullOrEmpty(value)) {
+				result = char.ToLower(result[0]) + result.Substring(1);
+			}
+			return result;
+		}
+
+		static string FormatName(string name, string suffix, string generics = null)
+		{
+			string result = String.Empty;
+			if (!String.IsNullOrEmpty(name) && !String.IsNullOrEmpty(suffix)) {
+				result = name + suffix;
+				int dindex = name.IndexOf("<", StringComparison.Ordinal);
+				if (dindex > 0) {
+					string dleft = name.Substring(0, dindex);
+					string dright = name.Substring(dindex);
+					if (!String.IsNullOrEmpty(generics)) {
+						dright = "<" + generics + ", " + dright.Substring(1);
+					}
+					result = String.Format("{0}{1}{2}", dleft, suffix, dright);
+				} else {
+					if (!String.IsNullOrEmpty(generics)) {
+						result = String.Format("{0}{1}<{2}>", name, suffix, generics);
+					}
+				}
+			} else {
+				result = name + suffix;
+				if (!String.IsNullOrEmpty(generics)) {
+					result = String.Format("{0}{1}<{2}>", name, suffix, generics);
+				}
+			}
+			return result;
+		}
+
+		internal static string GetTypeGenerics(string value)
+		{
+			var index = value.IndexOf('<');
+			if (index == -1)
+				return string.Empty;
+			else
+				return value.Substring(index);
+		}
+
+		internal static string GetTypeGenericStringList(string value)
+		{
+			string result = String.Empty;
+			if (!String.IsNullOrEmpty(value)) {
+				int index = value.IndexOf("<", StringComparison.Ordinal);
+				int marker = value.LastIndexOf(">", StringComparison.Ordinal);
+				if (index >= 0 && marker > index) {
+					string insides = value.Substring(index + 1, (marker - index) - 1);
+					string[] targs = insides.Split(',');
+					foreach (string targ in targs) {
+						if (targ.IndexOf("extends", StringComparison.Ordinal) >= 0 || targ.IndexOf("implements", StringComparison.Ordinal) >= 0) {
+							string buffer = targ.Replace("extends", "|").Replace("implements", "|");
+							string[] items = buffer.Split('|');
+							string types = items[0].Trim();
+							result += (types.Trim() + ", ");
+						} else {
+							result += (targ.Trim() + ", ");
+						}
+					}
+					result = result.TrimEnd(',', ' ');
+				}
+			}
+			return result;
+		}
+
+		static SkippedWord SkipToEndOfWord(string tsFile, ref int index)
+		{
+			var result = new SkippedWord();
+			if (!char.IsLetter(tsFile, index))
+				SkipEmpty(tsFile, ref index);
+			if (tsFile[index] == '[')
+				return result;
+			for (; index < tsFile.Length; index++) {
+				var item = tsFile[index];
+				if (char.IsLetterOrDigit(item) || item == '[' || item == ']' || item == '<' || item == '>' || item == '_' || item == '.' || item == '$')
+					result.Word += item;
+				else {
+					if (result.Word.EndsWith("]") && !result.Word.EndsWith("[]")) {
+						index--;
+						result.Word = result.Word.Substring(0, result.Word.Length - 1);
+					}
+					result.Wheres = ReadGeneric(tsFile, ref index, ref result.Word);
+					return result;
+				}
+			}
+			result.Wheres = ReadGeneric(tsFile, ref index, ref result.Word);
+			return result;
+		}
+
+		static Dictionary<string, string> ReadGeneric(string tsFile, ref int index, ref string word)
+		{
+			SkipEmpty(tsFile, ref index);
+			Dictionary<string, string> whereTypesExt = new Dictionary<string, string>();
+			if (word.Contains('<') && !word.Contains('>')) {
+				index -= word.Length - word.IndexOf('<');
+				word = word.Substring(0, word.IndexOf('<'));
+				int marker = CloseGeneric(tsFile, index);
+				if (marker > index) {
+					string insides = tsFile.Substring(index + 1, (marker - index) - 1);
+					word += "<";
+					string[] targs = insides.Split(',');
+					foreach (string targ in targs) {
+						if (targ.IndexOf("extends", StringComparison.Ordinal) >= 0 || targ.IndexOf("implements", StringComparison.Ordinal) >= 0) {
+							string buffer = targ.Replace("extends", "|").Replace("implements", "|");
+							string[] items = buffer.Split('|');
+							string types = items[0].Trim();
+							string wheres = items[1].Trim();
+							whereTypesExt.Add(types, wheres);
+							word += (types.Trim() + ", ");
+						} else {
+							word += (targ.Trim() + ", ");
+						}
+					}
+					word = word.TrimEnd(',', ' ');
+					word += ">";
+					index = (marker + 1);
+					SkipEmpty(tsFile, ref index);
+					// Support Arrays
+					char array1 = tsFile[index];
+					char array2 = tsFile[index + 1];
+					if (array1.Equals('[') && array2.Equals(']')) {
+						word += "[]";
+						index += 2;
+						SkipEmpty(tsFile, ref index);
+					}
+				} else {
+					throw new Exception("Invalid Generic Type Syntax Detected For Word: " + word);
+				}
+			}
+			return whereTypesExt;
+		}
+
+		static int CloseGeneric(string tsFile, int index)
+		{
+			int marker = -1;
+			for (; index < tsFile.Length; index++) {
+				char check = tsFile[index];
+				if (check.Equals('>')) {
+					marker = index;
+					break;
+				}
+			}
+			return marker;
+		}
+
+		private static void ReadTypeScriptFile(string tsFile, ref int index, List<NamespaceDefinition> namespaces)
         {
             NamespaceDefinition global = new NamespaceDefinition();
             namespaces.Add(global);
@@ -341,7 +502,7 @@ namespace TypeScriptToCS
                 if (index >= tsFile.Length) return;
                 SkipEmpty(tsFile, ref index);
                 if (index >= tsFile.Length) return;
-                while (tsFile[index] == '/')
+                while (index < tsFile.Length && tsFile[index] == '/')
                 {
                     index++;
 
@@ -432,10 +593,11 @@ namespace TypeScriptToCS
                 /*bool get = false;
                 bool set = false;*/
                 SkipEmpty(tsFile, ref index);
-                do
-                {
-                    word = SkipToEndOfWord(tsFile, ref index);
-                    switch (word)
+				var skip = new SkippedWord();
+				do {
+					skip = SkipToEndOfWord(tsFile, ref index);
+					word = skip.Word;
+					switch (word)
                     {
                         case "static":
                         case "function":
@@ -457,14 +619,15 @@ namespace TypeScriptToCS
                     SkipEmpty(tsFile, ref index);
                 }
                 while (word == "export" || word == "declare" || word == "static" /*|| word == "get" || word == "set"*/ || word == "function" || word == "var" || word == "const" || word == "abstract" || word == "let");
-                var whereTypesExt = GenericRead(tsFile, ref index, ref word);
-                switch (word)
+				var whereTypesExt = skip.Wheres; //GenericRead(tsFile, ref index, ref word);
+				switch (word)
                 {
                     case "type":
                         {
-                            string name = SkipToEndOfWord(tsFile, ref index);
-                            var wheres = GenericRead(tsFile, ref index, ref name);
-                            SkipEmpty(tsFile, ref index);
+							SkippedWord skipName = SkipToEndOfWord(tsFile, ref index); // Mackey Kinard
+							string name = skipName.Word;
+							//var wheres = skipName.Wheres; //GenericRead(tsFile, ref index, ref name);
+							SkipEmpty(tsFile, ref index);
                             if (tsFile[index++] != '=')
                             {
                                 index--;
@@ -486,10 +649,10 @@ namespace TypeScriptToCS
                                         index = tsFile.IndexOf(tsFile[index], index + 1) + 1;
                                     }
                                     else
-                                        anys.Add(SkipToEndOfWord(tsFile, ref index));
+										anys.Add(SkipToEndOfWord(tsFile, ref index).Word);
                                     SkipEmpty(tsFile, ref index);
                                 }
-                                while (tsFile[index++] == '|');
+                                while (index < tsFile.Length && tsFile[index++] == '|');
                                 index--;
                                 if (strings.Count == anys.Count)
                                 {
@@ -512,11 +675,12 @@ namespace TypeScriptToCS
                     case "class":
                     case "interface":
                         {
-                            string name = SkipToEndOfWord(tsFile, ref index);
-                            if (string.IsNullOrEmpty(name))
-                                goto default;
-                            var wheres = GenericRead(tsFile, ref index, ref name);
-                            typeTop.Add(new ClassDefinition
+							SkippedWord skipName = SkipToEndOfWord(tsFile, ref index);
+							string name = skipName.Word;
+							if (string.IsNullOrEmpty(name))
+								goto default;
+							var wheres = skipName.Wheres; //GenericRead(tsFile, ref index, ref name);
+							typeTop.Add(new ClassDefinition
                             {
                                 name = name,
                                 type = (TypeType)Enum.Parse(typeof(TypeType), word),
@@ -526,12 +690,12 @@ namespace TypeScriptToCS
                             SkipEmpty(tsFile, ref index);
 
                             string nWord;
-                            while ((nWord = SkipToEndOfWord(tsFile, ref index)) == "extends" || nWord == "implements" || tsFile[index] == ',')
+							while ((nWord = SkipToEndOfWord(tsFile, ref index).Word) == "extends" || nWord == "implements" || tsFile[index] == ',')
                             {
                                 if (tsFile[index] == ',')
                                     index++;
                                 SkipEmpty(tsFile, ref index);
-                                (typeTop.Last() as ClassDefinition).extends.Add(SkipToEndOfWord(tsFile, ref index));
+                                (typeTop.Last() as ClassDefinition).extends.Add(SkipToEndOfWord(tsFile, ref index).Word);
                                 SkipEmpty(tsFile, ref index);
                             }
                             break;
@@ -540,7 +704,7 @@ namespace TypeScriptToCS
                     case "enum":
                         typeTop.Add(new EnumDefinition
                         {
-                            name = SkipToEndOfWord(tsFile, ref index)
+                            name = SkipToEndOfWord(tsFile, ref index).Word
                         });
                         break;
 
@@ -548,11 +712,19 @@ namespace TypeScriptToCS
                     case "namespace":
                         if (tsFile[index] == '\'')
                             index++;
-                        namespaceTop.Add(new NamespaceDefinition
-                        {
-                            name = SkipToEndOfWord(tsFile, ref index)
-                        });
-                        if (string.IsNullOrEmpty(namespaceTop.Last().name))
+						string topNamespace = null;
+						var topNameItem = (namespaceTop != null && namespaceTop.Count > 0) ? namespaceTop.Last() : null;
+						if (topNameItem != null) {
+							topNamespace = topNameItem.name;
+						}
+						string nameWord = SkipToEndOfWord(tsFile, ref index).Word;
+						if (!String.IsNullOrEmpty(topNamespace) && !String.IsNullOrEmpty(nameWord)) {
+							nameWord = topNamespace + "." + nameWord;
+						}
+						namespaceTop.Add(new NamespaceDefinition {
+							name = nameWord
+						});
+						if (string.IsNullOrEmpty(namespaceTop.Last().name))
                         {
                             namespaceTop.RemoveAt(namespaceTop.Count - 1);
                             goto default;
@@ -603,7 +775,17 @@ namespace TypeScriptToCS
                                     string type = null;
                                     TypeDefinition typeDef;
                                     if (index >= tsFile.Length) return;
-                                    if (ReadBracketType(tsFile, ref index, (string.IsNullOrEmpty(word) ? typeTop.Last(v => v is ClassDefinition).name + "indexer" : typeTop.Last(v => v is ClassDefinition).name + char.ToUpper(word[0]) + word.Substring(1)) + "Interface", out typeDef, out type))
+									
+									var topItem = typeTop.Last();
+									string topName = !String.IsNullOrEmpty(topItem.name) ? GetTypeWithOutGenerics(topItem.name) : "GlobalClass";
+									string topGens = GetTypeGenericStringList(topItem.name);
+									string interfaceName = String.IsNullOrEmpty(word) ? FormatName("Indexer", "Interface", topGens) : FormatName(word, "Interface", topGens);
+									string delegateName = FormatName(word, "Delegate", topGens);
+									interfaceName = (topName + FirstUpper(interfaceName));
+									delegateName = (topName + FirstUpper(delegateName));
+
+									//if (ReadBracketType(tsFile, ref index, (string.IsNullOrEmpty(word) ? typeTop.Last(v => v is ClassDefinition).name + "indexer" : typeTop.Last(v => v is ClassDefinition).name + char.ToUpper(word[0]) + word.Substring(1)) + "Interface", out typeDef, out type))
+									if (ReadBracketType(tsFile, ref index, interfaceName, out typeDef, out type))
                                     {
                                         if (namespaceTop.Count == 0)
                                             global.typeDefinitions.Add(typeDef);
@@ -611,18 +793,18 @@ namespace TypeScriptToCS
                                             namespaceTop.Last().typeDefinitions.Add(typeDef);
                                         index++;
                                     }
-                                    else if (!ReadFunctionType(tsFile, ref index, ref type, word + "Delegate", typeTop, namespaceTop, global))
+									else if (!ReadFunctionType(tsFile, ref index, ref type, delegateName /*word + "Delegate"*/, typeTop, namespaceTop, global))
                                     {
                                         List<string> anys = new List<string>();
                                         do
                                         {
                                             SkipEmpty(tsFile, ref index);
-                                            anys.Add(SkipToEndOfWord(tsFile, ref index));
+                                            anys.Add(SkipToEndOfWord(tsFile, ref index).Word);
                                             SkipEmpty(tsFile, ref index);
                                             if (index + 1 >= tsFile.Length)
                                                 return;
                                         }
-                                        while (tsFile[index++] == '|');
+                                        while (index < tsFile.Length && tsFile[index++] == '|');
                                         index--;
                                         type = string.Join(", ", anys);
                                         if (anys.Count > 1)
@@ -660,7 +842,7 @@ namespace TypeScriptToCS
                                         indexer = item == '[',
                                         from = typeTop.Last(v => v is ClassDefinition) as ClassDefinition
                                     };
-                                    var startBracket = item;
+                                    //var startBracket = item; - NOT USED
                                     var endBracket = item == '[' ? ']' : ')';
                                     method.typeAndName.name = word;
 
@@ -683,7 +865,7 @@ namespace TypeScriptToCS
                                             SkipEmpty(tsFile, ref index); @params = true;
                                         }
 
-                                        string word2 = SkipToEndOfWord(tsFile, ref index);
+                                        string word2 = SkipToEndOfWord(tsFile, ref index).Word;
                                         SkipEmpty(tsFile, ref index);
 
                                         if (tsFile[index] == '?')
@@ -701,7 +883,16 @@ namespace TypeScriptToCS
                                                 SkipEmpty(tsFile, ref index);
                                                 string type2 = null;
                                                 TypeDefinition typeDef;
-                                                if (ReadBracketType(tsFile, ref index, word2 + "Interface", out typeDef, out type2))
+
+												var topItem = typeTop.Last();
+												string topName = !String.IsNullOrEmpty(topItem.name) ? GetTypeWithOutGenerics(topItem.name) : "GlobalClass";
+												string topGens = GetTypeGenericStringList(topItem.name);
+												string interfaceName = FormatName(word2, "Interface", topGens);
+												string delegateName = FormatName(method.typeAndName.name, "Param" + (method.parameters.Count + 1).ToString() + "Delegate", topGens);
+												interfaceName = (topName + FirstUpper(interfaceName));
+												delegateName = (topName + FirstUpper(delegateName));
+
+												if (ReadBracketType(tsFile, ref index, interfaceName /*word2 + "Interface"*/, out typeDef, out type2))
                                                 {
                                                     if (namespaceTop.Count == 0)
                                                         global.typeDefinitions.Add(typeDef);
@@ -709,7 +900,7 @@ namespace TypeScriptToCS
                                                         namespaceTop.Last().typeDefinitions.Add(typeDef);
                                                     index++;
                                                 }
-                                                else if (!ReadFunctionType(tsFile, ref index, ref type2, method.typeAndName.name + "Param" + (method.parameters.Count + 1) + "Delegate", typeTop, namespaceTop, global))
+												else if (!ReadFunctionType(tsFile, ref index, ref type2, delegateName /*method.typeAndName.name + "Param" + (method.parameters.Count + 1) + "Delegate"*/, typeTop, namespaceTop, global))
                                                 {
                                                     List<string> anys = new List<string>();
                                                     do
@@ -721,10 +912,10 @@ namespace TypeScriptToCS
                                                             index = tsFile.IndexOf(tsFile[index], index + 1) + 1;
                                                         }
                                                         else
-                                                            anys.Add(SkipToEndOfWord(tsFile, ref index));
+                                                            anys.Add(SkipToEndOfWord(tsFile, ref index).Word);
                                                         SkipEmpty(tsFile, ref index);
                                                     }
-                                                    while (tsFile[index++] == '|');
+                                                    while (index < tsFile.Length && tsFile[index++] == '|');
                                                     index--;
                                                     type2 = string.Join(", ", anys);
                                                     if (anys.Count > 1)
@@ -766,7 +957,16 @@ namespace TypeScriptToCS
 
                                         if (index >= tsFile.Length) return;
 
-                                        if (ReadBracketType(tsFile, ref index, (string.IsNullOrEmpty(word) ? typeTop.Last().name + "indexerInterface" : typeTop.Last().name + char.ToUpper(word[0]) + word.Substring(1)) + "Interface", out typeDef, out type))
+										var topItem = typeTop.Last();
+										string topName = !String.IsNullOrEmpty(topItem.name) ? GetTypeWithOutGenerics(topItem.name) : "GlobalClass";
+										string topGens = GetTypeGenericStringList(topItem.name);
+										string interfaceName = String.IsNullOrEmpty(word) ? FormatName("Indexer", "Interface", topGens) : FormatName(word, "Interface", topGens);
+										string delegateName = FormatName(method.typeAndName.name, "Delegate", topGens);
+										interfaceName = (topName + FirstUpper(interfaceName));
+										delegateName = (topName + FirstUpper(delegateName));
+
+										//if (ReadBracketType(tsFile, ref index, (string.IsNullOrEmpty(word) ? typeTop.Last().name + "indexerInterface" : typeTop.Last().name + char.ToUpper(word[0]) + word.Substring(1)) + "Interface", out typeDef, out type))
+										if (ReadBracketType(tsFile, ref index, interfaceName, out typeDef, out type))
                                         {
                                             if (namespaceTop.Count == 0)
                                                 global.typeDefinitions.Add(typeDef);
@@ -774,7 +974,7 @@ namespace TypeScriptToCS
                                                 namespaceTop.Last().typeDefinitions.Add(typeDef);
                                             index++;
                                         }
-                                        else if (!ReadFunctionType(tsFile, ref index, ref type, method.typeAndName.name + "Delegate", typeTop, namespaceTop, global))
+										else if (!ReadFunctionType(tsFile, ref index, ref type, delegateName /*method.typeAndName.name + "Delegate"*/, typeTop, namespaceTop, global))
                                         {
                                             List<string> anys = new List<string>();
                                             List<string> strings = new List<string>();
@@ -788,10 +988,10 @@ namespace TypeScriptToCS
                                                     index = tsFile.IndexOf(tsFile[index], index + 1) + 1;
                                                 }
                                                 else
-                                                    anys.Add(SkipToEndOfWord(tsFile, ref index));
+                                                    anys.Add(SkipToEndOfWord(tsFile, ref index).Word);
                                                 SkipEmpty(tsFile, ref index);
                                             }
-                                            while (tsFile[index++] == '|');
+                                            while (index < tsFile.Length && tsFile[index++] == '|');
                                             index--;
                                             if (strings.Count == anys.Count)
                                             {
@@ -895,20 +1095,21 @@ namespace TypeScriptToCS
             {
                 if (item is Method && (item as Method).typeAndName.name == delegateName)
                 {
-                    delegateName = (i == 0 || i == 1 ? delegateName : delegateName.Substring(0, delegateName.Length - i.ToString().Length)) + (i == 0 ? "" : i.ToString());
+					//delegateName = (i == 0 || i == 1 ? delegateName : delegateName.Substring(0, delegateName.Length - i.ToString().Length)) + (i == 0 ? "" : i.ToString());
+					delegateName = FormatName(delegateName, "_");
                     i++;
                 }
             }
             int oldIndex = index;
-            string tWord = SkipToEndOfWord(tsFile, ref index);
-            if (index >= tsFile.Length - 1)
-            {
-                index = oldIndex;
-                return false;
-            }
-            var where = GenericRead(tsFile, ref index, ref tWord);
-            delegateName = delegateName.Replace(">", "").Replace("<", "");
-            List<TypeNameOptionalAndParams> parameters = new List<TypeNameOptionalAndParams>();
+			SkippedWord skip = SkipToEndOfWord(tsFile, ref index);
+		    //string tWord = skip.Word; - NOT USED
+			if (index >= tsFile.Length - 1) {
+				index = oldIndex;
+				return false;
+			}
+			var where = skip.Wheres; //GenericRead(tsFile, ref index, ref tWord);
+			// NOTE: Dont Remmove '<>' - delegateName = delegateName.Replace(">", "").Replace("<", "");
+			List<TypeNameOptionalAndParams> parameters = new List<TypeNameOptionalAndParams>();
             if (tsFile[index] == '(')
             {
                 SkipEmpty(tsFile, ref index);
@@ -926,7 +1127,7 @@ namespace TypeScriptToCS
                         index += 3;
                         SkipEmpty(tsFile, ref index);
                     }
-                    var word = SkipToEndOfWord(tsFile, ref index);
+					var word = SkipToEndOfWord(tsFile, ref index).Word;
                     SkipEmpty(tsFile, ref index);
                     bool optional = tsFile[index] == '?';
                     if (optional)
@@ -936,7 +1137,7 @@ namespace TypeScriptToCS
                     }
                     index++;
                     SkipEmpty(tsFile, ref index);
-                    var type = SkipToEndOfWord(tsFile, ref index);
+                    var type = SkipToEndOfWord(tsFile, ref index).Word;
                     parameters.Add(new TypeNameOptionalAndParams
                     {
                         name = word,
@@ -965,7 +1166,7 @@ namespace TypeScriptToCS
                     goto EndIf;
                 index++;
                 SkipEmpty(tsFile, ref index);
-                returnType = SkipToEndOfWord(tsFile, ref index);
+                returnType = SkipToEndOfWord(tsFile, ref index).Word;
             }
             EndIf:
             typeDefinitions.Add(new Method
@@ -988,6 +1189,7 @@ namespace TypeScriptToCS
             return true;
         }
 
+		/* DEPRECIATED
         private static string SkipToEndOfWord (string tsFile, ref int index)
         {
             if (!char.IsLetter(tsFile, index))
@@ -1012,6 +1214,7 @@ namespace TypeScriptToCS
             }
             return result;
         }
+		*/
 
         public static string ChangeName (string name)
         {
