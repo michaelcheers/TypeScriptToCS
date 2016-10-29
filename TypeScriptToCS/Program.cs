@@ -26,17 +26,20 @@ namespace TypeScriptToCS
             string tsFileLocation = Console.ReadLine();
             string tsFile = "";
 
+            ReadFile:
             try
             {
                 tsFile = File.ReadAllText(tsFileLocation);
             }
             catch (Exception e)
             {
-                Console.WriteLine(e + " occured when trying to read file. Press enter to exit. Press t to rethrow.");
+                Console.WriteLine(e + " occured when trying to read file. Press enter to exit. Press t to retry.");
                 ConsoleKey key;
                 while ((key = Console.ReadKey(true).Key) != ConsoleKey.Enter)
                     if (key == ConsoleKey.R)
                         throw;
+                    else if (key == ConsoleKey.T)
+                        goto ReadFile;
                 Environment.Exit(0);
             }
 
