@@ -16,6 +16,6 @@ namespace TypeScriptToCS
         public bool @static;
         public string name { get; set; }
         public TypeType type;
-        public Dictionary<string, string> typeWheres = new Dictionary<string, string>();
+        public Dictionary<string, List<ComplexType>> typeWheres = new Dictionary<string, List<ComplexType>>();
     }
 }

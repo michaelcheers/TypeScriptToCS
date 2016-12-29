@@ -35,8 +35,14 @@
     <NoStdLib>true</NoStdLib>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="..\TypeScriptToCS\bin\Debug\output.cs">
-      <Link>output.cs</Link>
+    <Compile Include="..\TypeScriptToCS\bin\Debug\extras.cs">
+      <Link>extras.cs</Link>
+    </Compile>
+    <Compile Include="..\TypeScriptToCS\bin\Debug\three.new.cs">
+      <Link>three.new.cs</Link>
+    </Compile>
+    <Compile Include="..\TypeScriptToCS\bin\Debug\try.cs">
+      <Link>try.cs</Link>
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

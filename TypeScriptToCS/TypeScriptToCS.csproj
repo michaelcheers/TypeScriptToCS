@@ -47,6 +47,7 @@
     <Compile Include="ClassElement.cs" />
     <Compile Include="EnumDefinition.cs" />
     <Compile Include="Field.cs" />
+    <Compile Include="ComplexType.cs" />
     <Compile Include="ImplicitMethod.cs" />
     <Compile Include="Method.cs" />
     <Compile Include="NamespaceDefinition.cs" />
@@ -57,6 +58,7 @@
     <Compile Include="TypeDefinition.cs" />
     <Compile Include="TypeNameOptionalAndParams.cs" />
     <Compile Include="TypeNameAndOptional.cs" />
+    <Compile Include="TypescriptFileReader.cs" />
     <Compile Include="TypeType.cs" />
   </ItemGroup>
   <ItemGroup>
